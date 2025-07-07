@@ -25,7 +25,8 @@ jobs:
     - name: Install package + dev extras
       run: |
         python -m pip install --upgrade pip
-        pip install ".[dev]"
+        # Update this line to install both dev and spark extras
+        pip install ".[dev,spark]"
 
     - name: Run unit tests
       run: |
