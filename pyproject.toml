@@ -22,8 +22,8 @@ dependencies = []
 dev = ["pytest>=7.0", "black>=24.0", "mypy>=1.8", "ruff>=0.4.0"]
 
 [project.urls]
-Homepage = "https://github.com/gowthamrao/PyRegularExpression"
-BugTracker = "https://github.com/gowthamrao/PyRegularExpression/issues"
+Homepage = "https://github.com/OHDSI/PyRegularExpression"
+BugTracker = "https://github.com/OHDSI/PyRegularExpression/issues"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
