@@ -16,10 +16,19 @@ classifiers = [
     "Operating System :: OS Independent",
     "Topic :: Text Processing :: General",
 ]
-dependencies = []
+dependencies = [
+    "pandas"
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "black>=24.0", "mypy>=1.8", "ruff>=0.4.0", "pytest-cov"]
+dev = [
+    "pytest>=7.0",
+    "black>=24.0",
+    "mypy>=1.8",
+    "ruff>=0.4.0",
+    "pytest-cov",
+    "nltk"
+]
 
 [project.urls]
 Homepage = "https://github.com/OHDSI/PyRegularExpression"
