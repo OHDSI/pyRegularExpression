@@ -1,4 +1,4 @@
-from eligibility_criteria_finder import ELIGIBILITY_CRITERIA_FINDERS
+from pyregularexpression.eligibility_criteria_finder import ELIGIBILITY_CRITERIA_FINDERS
 
 examples = {
     "hit_combo"   : "Adults 18–65 with diabetes were eligible; prior insulin use was an exclusion criterion.",
