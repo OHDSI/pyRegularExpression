@@ -13,26 +13,33 @@ authors = [{ name = "Gowtham Rao", email = "rao@ohdsi.org" }]
 keywords = ["regex", "regular expressions", "patterns"]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Topic :: Text Processing :: General",
 ]
 dependencies = [
-    "pandas"
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "black>=24.0",
-    "mypy>=1.8",
-    "ruff>=0.4.0",
-    "pytest-cov",
-    "nltk"
+    "pandas",
+    "numpy"
 ]
 
 [project.urls]
-Homepage = "https://github.com/OHDSI/PyRegularExpression"
-BugTracker = "https://github.com/OHDSI/PyRegularExpression/issues"
+Homepage = "https://github.com/OHDSI/pyRegularExpression"
+BugTracker = "https://github.com/OHDSI/pyRegularExpression/issues"
+
+[project.optional-dependencies]
+# Optional dependency for Spark functionality
+spark = [
+    "pyspark"
+]
+# Dependencies for development and testing
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "black>=24.0",
+    "mypy>=1.8",
+    "ruff>=0.4.0",
+    "nltk"
+]
 
 [tool.setuptools]
 package-dir = { "" = "src" }
