@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyregularexpression"
+version = "0.1.0"
+description = "Collection of reusable regular‑expression patterns"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+authors = [{ name = "Gowtham Rao", email = "rao@ohdsi.org" }]
+keywords = ["regex", "regular expressions", "patterns"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Text Processing :: General",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "black>=24.0", "mypy>=1.8", "ruff>=0.4.0"]
+
+[project.urls]
+Homepage = "https://github.com/gowthamrao/PyRegularExpression"
+BugTracker = "https://github.com/gowthamrao/PyRegularExpression/issues"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
