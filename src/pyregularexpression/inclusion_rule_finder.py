@@ -63,8 +63,9 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
 # 3.  Finder variants
 # ─────────────────────────────
 def find_inclusion_rule_v1(text: str):
-    """Tier 1 – any inclusion/eligibility cue."""    
-    return _collect([INCL_TERM_RE], text)
+    """Tier 1 – any inclusion/eligibility cue."""
+    token_spans = _token_spans(text)
+    out: List[Tuple[int, int, str]] = []
 
 def find_inclusion_rule_v2(text: str, window: int = 5):
     """Tier 2 – inclusion cue + gating token (‘if’, ‘only’, ':') nearby."""    
