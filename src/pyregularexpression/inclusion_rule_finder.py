@@ -34,7 +34,7 @@ INCL_TERM_RE = re.compile(
     re.I,
 )
 
-GATING_TOKEN_RE = re.compile(r"\b(?:if|only|criteria:|:|must\s+have|required\s+to\s+have)\b", re.I)
+GATING_TOKEN_RE = re.compile(r"\b(?:if|only|criteria:|:|must\s+have)", re.I)
 
 HEADING_INCL_RE = re.compile(r"(?m)^(?:inclusion\s+criteria|eligibility\s+criteria|inclusion)\s*[:\-]?\s*$", re.I)
 
