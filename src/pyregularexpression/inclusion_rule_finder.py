@@ -127,16 +127,24 @@ def find_inclusion_rule_v3(text: str, block_chars: int = 400):
     return out
 
 def find_inclusion_rule_v4(text: str, window: int = 6):
-    """Tier 4 – v2 + explicit conditional verbs, excludes traps."""    
+    """Tier 4 – v2 + explicit conditional verbs, excludes traps."""
     CONDITIONAL_VERB_RE = re.compile(r"\b(?:must\s+have|required\s+to\s+have|had\s+to\s+have|must\s+possess)\b", re.I)
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    cond_idx = {i for i, t in enumerate(tokens) if CONDITIONAL_VERB_RE.fullmatch(t)}
+    
+    # Corrected logic to find all conditional verb tokens
+    cond_idx = set()
+    for c_match in CONDITIONAL_VERB_RE.finditer(text):
+        w_s, w_e = _char_span_to_word_span((c_match.start(), c_match.end()), token_spans)
+        for i in range(w_s, w_e + 1):
+            cond_idx.add(i)
+
     matches = find_inclusion_rule_v2(text, window=window)
     out: List[Tuple[int, int, str]] = []
+    
     for w_s, w_e, snip in matches:
         if any(c for c in cond_idx if w_s - window <= c <= w_e + window):
             out.append((w_s, w_e, snip))
+            
     return out
 
 def find_inclusion_rule_v5(text: str):
