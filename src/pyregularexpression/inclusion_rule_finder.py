@@ -66,6 +66,16 @@ def find_inclusion_rule_v1(text: str):
     """Tier 1 – any inclusion/eligibility cue."""
     token_spans = _token_spans(text)
     out: List[Tuple[int, int, str]] = []
+    
+    for m in INCL_TERM_RE.finditer(text):
+        # This is the corrected trap filter: it checks the text *around* the match.
+        if TRAP_RE.search(text[max(0, m.start() - 20):m.end() + 20]):
+            continue
+            
+        w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        out.append((w_s, w_e, m.group(0)))
+        
+    return out
 
 def find_inclusion_rule_v2(text: str, window: int = 5):
     """Tier 2 – inclusion cue + gating token (‘if’, ‘only’, ':') nearby."""    
