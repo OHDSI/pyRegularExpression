@@ -38,7 +38,7 @@ GATING_TOKEN_RE = re.compile(r"\b(?:if|only|criteria:|:|must\s+have|required\s+t
 
 HEADING_INCL_RE = re.compile(r"(?m)^(?:inclusion\s+criteria|eligibility\s+criteria|inclusion)\s*[:\-]?\s*$", re.I)
 
-TRAP_RE = re.compile(r"\b(?:study\s+included|analysis\s+included|included\s+patients)\b", re.I)
+TRAP_RE = re.compile(r"\b(?:study\s+included|analysis\s+included|included\s+patients|patients\s+included)\b", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
     r"(?:inclusion\s+criteria:\s+[^\.\n]{0,120}|patients?\s+were\s+eligible\s+if\s+[^\.\n]{0,120})",
