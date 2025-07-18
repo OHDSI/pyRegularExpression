@@ -78,17 +78,35 @@ def find_inclusion_rule_v1(text: str):
     return out
 
 def find_inclusion_rule_v2(text: str, window: int = 5):
-    """Tier 2 – inclusion cue + gating token (‘if’, ‘only’, ':') nearby."""    
+    """Finds an inclusion cue that also has a 'gating' word or symbol nearby.
+
+    This version increases precision over v1 by requiring two pieces of evidence:
+    1. An inclusion keyword (e.g., "eligible", "included").
+    2. A contextual gating word (e.g., "if", "only", ":", "must have").
+
+    The goal is to match patterns like "Patients were eligible if..." while
+    avoiding matches on simpler statements like "Eligible patients were studied."
+    """
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    gate_idx = {i for i, t in enumerate(tokens) if GATING_TOKEN_RE.fullmatch(t)}
+    
+    # Corrected logic to find all gating phrase tokens
+    gate_idx = set()
+    for g_match in GATING_TOKEN_RE.finditer(text):
+        w_s, w_e = _char_span_to_word_span((g_match.start(), g_match.end()), token_spans)
+        for i in range(w_s, w_e + 1):
+            gate_idx.add(i)
+
     out: List[Tuple[int, int, str]] = []
     for m in INCL_TERM_RE.finditer(text):
         if TRAP_RE.search(text[max(0, m.start()-20):m.end()+20]):
             continue
+            
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        
+        # Check if any part of the found cue is near a gating token
         if any(g for g in gate_idx if w_s - window <= g <= w_e + window):
             out.append((w_s, w_e, m.group(0)))
+            
     return out
 
 def find_inclusion_rule_v3(text: str, block_chars: int = 400):
