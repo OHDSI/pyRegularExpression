@@ -34,11 +34,11 @@ INCL_TERM_RE = re.compile(
     re.I,
 )
 
-GATING_TOKEN_RE = re.compile(r"\b(?:if|only|criteria:|:|must\s+have|required\s+to\s+have)\b", re.I)
+GATING_TOKEN_RE = re.compile(r"\b(?:if|only|criteria:|:|must\s+have)", re.I)
 
-HEADING_INCL_RE = re.compile(r"(?m)^(?:inclusion\s+criteria|eligibility\s+criteria|inclusion)\s*[:\-]?\s*$", re.I)
+HEADING_INCL_RE = re.compile(r"(?m)^(?:inclusion\s+criteria|eligibility\s+criteria|inclusion)\s*[:\-]?[ \t]*$", re.I)
 
-TRAP_RE = re.compile(r"\b(?:study\s+included|analysis\s+included|included\s+patients)\b", re.I)
+TRAP_RE = re.compile(r"\b(?:study\s+included|analysis\s+included|included\s+patients|patients\s+included)\b", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
     r"(?:inclusion\s+criteria:\s+[^\.\n]{0,120}|patients?\s+were\s+eligible\s+if\s+[^\.\n]{0,120})",
@@ -63,21 +63,50 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
 # 3.  Finder variants
 # ─────────────────────────────
 def find_inclusion_rule_v1(text: str):
-    """Tier 1 – any inclusion/eligibility cue."""    
-    return _collect([INCL_TERM_RE], text)
+    """Tier 1 – any inclusion/eligibility cue."""
+    token_spans = _token_spans(text)
+    out: List[Tuple[int, int, str]] = []
+    
+    for m in INCL_TERM_RE.finditer(text):
+        # This is the corrected trap filter: it checks the text *around* the match.
+        if TRAP_RE.search(text[max(0, m.start() - 20):m.end() + 20]):
+            continue
+            
+        w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        out.append((w_s, w_e, m.group(0)))
+        
+    return out
 
 def find_inclusion_rule_v2(text: str, window: int = 5):
-    """Tier 2 – inclusion cue + gating token (‘if’, ‘only’, ':') nearby."""    
+    """Finds an inclusion cue that also has a 'gating' word or symbol nearby.
+
+    This version increases precision over v1 by requiring two pieces of evidence:
+    1. An inclusion keyword (e.g., "eligible", "included").
+    2. A contextual gating word (e.g., "if", "only", ":", "must have").
+
+    The goal is to match patterns like "Patients were eligible if..." while
+    avoiding matches on simpler statements like "Eligible patients were studied."
+    """
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    gate_idx = {i for i, t in enumerate(tokens) if GATING_TOKEN_RE.fullmatch(t)}
+    
+    # Corrected logic to find all gating phrase tokens
+    gate_idx = set()
+    for g_match in GATING_TOKEN_RE.finditer(text):
+        w_s, w_e = _char_span_to_word_span((g_match.start(), g_match.end()), token_spans)
+        for i in range(w_s, w_e + 1):
+            gate_idx.add(i)
+
     out: List[Tuple[int, int, str]] = []
     for m in INCL_TERM_RE.finditer(text):
         if TRAP_RE.search(text[max(0, m.start()-20):m.end()+20]):
             continue
+            
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        
+        # Check if any part of the found cue is near a gating token
         if any(g for g in gate_idx if w_s - window <= g <= w_e + window):
             out.append((w_s, w_e, m.group(0)))
+            
     return out
 
 def find_inclusion_rule_v3(text: str, block_chars: int = 400):
@@ -98,16 +127,24 @@ def find_inclusion_rule_v3(text: str, block_chars: int = 400):
     return out
 
 def find_inclusion_rule_v4(text: str, window: int = 6):
-    """Tier 4 – v2 + explicit conditional verbs, excludes traps."""    
+    """Tier 4 – v2 + explicit conditional verbs, excludes traps."""
     CONDITIONAL_VERB_RE = re.compile(r"\b(?:must\s+have|required\s+to\s+have|had\s+to\s+have|must\s+possess)\b", re.I)
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    cond_idx = {i for i, t in enumerate(tokens) if CONDITIONAL_VERB_RE.fullmatch(t)}
+    
+    # Corrected logic to find all conditional verb tokens
+    cond_idx = set()
+    for c_match in CONDITIONAL_VERB_RE.finditer(text):
+        w_s, w_e = _char_span_to_word_span((c_match.start(), c_match.end()), token_spans)
+        for i in range(w_s, w_e + 1):
+            cond_idx.add(i)
+
     matches = find_inclusion_rule_v2(text, window=window)
     out: List[Tuple[int, int, str]] = []
+    
     for w_s, w_e, snip in matches:
         if any(c for c in cond_idx if w_s - window <= c <= w_e + window):
             out.append((w_s, w_e, snip))
+            
     return out
 
 def find_inclusion_rule_v5(text: str):
