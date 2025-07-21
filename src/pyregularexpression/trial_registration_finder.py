@@ -22,18 +22,14 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i,(a,b) in reversed(list(enumerate(spans))) if a<e<=b)
     return w_s, w_e
 
-REGISTRY_ID_RE = re.compile(
-    r"\b(?:NCT\d{8}|ISRCTN\d{6,8}|EudraCT\s*\d{4}-\d{6}-\d{2}|ChiCTR-\w+|ANZCTR\s*\w+|JPRN-\w+)\b",
-    re.I,
-)
-REG_CUE_RE = re.compile(r"\btrial\s+registration|registered\s+at|prospectively\s+registered\b", re.I)
-VERB_RE = re.compile(r"\bregistered|recorded|listed|submitted|prospectively\s+registered\b", re.I)
+REGISTRY_ID_RE = re.compile(r"\b(?:NCT\d{8}|ISRCTN\d{6,8}|EudraCT\s*\d{4}-\d{6}-\d{2}|ChiCTR(?:-\w+)?|ANZCTR\s*\w+|JPRN-\w+|ClinicalTrials\.gov|ISRCTN|EudraCT|ChiCTR)\b", re.I)
+REG_CUE_RE = re.compile(r"\b(?:trial\s+registration|study\s+registered|registered\s+(?:at|in|with|on)|recorded\s+as|registration\s+was\s+recorded|prospectively\s+registered|ChiCTR|ClinicalTrials\.gov|EudraCT|ISRCTN)\b", re.I)
+VERB_RE = re.compile(r"\b(?:registered|recorded|submitted|prospectively\s+registered)\b", re.I)
 HEAD_REG_RE = re.compile(r"(?m)^(?:trial\s+registration|registration)\s*[:\-]?\s*$", re.I)
-TIGHT_TEMPLATE_RE = re.compile(r"trial\s+was\s+prospectively\s+registered[^\n]{0,60}NCT\d{8}", re.I)
-
+TIGHT_TEMPLATE_RE = re.compile(r"(?:this\s+)?trial\s+was\s+prospectively\s+registered(?:\s+at\s+\w+)?[^\n]{0,60}?(?:NCT\d{8}|ISRCTN\d{6,8}|EudraCT\s*\d{4}-\d{6}-\d{2}|ChiCTR-\w+)", re.I)
 TRAP_RE = re.compile(r"\bIRB\s+|ethical\s+approval|registry\s+of\s+deeds\b", re.I)
 
-def _collect(patterns: Sequence[re.Pattern[str]], text: str):
+def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, int, str]]:
     spans = _token_spans(text)
     out: List[Tuple[int, int, str]] = []
     for patt in patterns:
@@ -45,14 +41,35 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_trial_registration_v1(text: str):
-    return _collect([REG_CUE_RE, REGISTRY_ID_RE], text)
+def find_trial_registration_v1(text: str) -> List[Tuple[int, int, str]]:
+    """Tier 1 – high recall: any registration cue or registry ID with trap filtering."""
+    spans = _token_spans(text)
+    out: List[Tuple[int, int, str]] = []
 
-def find_trial_registration_v2(text: str, window: int = 4):
+    for patt in [REG_CUE_RE, REGISTRY_ID_RE]:
+        for m in patt.finditer(text):
+            context = text[max(0, m.start() - 40): m.end() + 40]
+            if TRAP_RE.search(context):
+                continue
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            out.append((w_s, w_e, m.group(0)))
+    
+    return out
+
+def find_trial_registration_v2(text: str, window: int = 6):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    cue_idx = {i for i, t in enumerate(tokens) if REG_CUE_RE.fullmatch(t) or REGISTRY_ID_RE.fullmatch(t)}
-    verb_idx = {i for i, t in enumerate(tokens) if VERB_RE.fullmatch(t)}
+    cue_idx = set()
+    verb_idx = set()
+    
+    for patt in [REG_CUE_RE, REGISTRY_ID_RE]:
+        for m in patt.finditer(text):
+            w_s, _ = _char_to_word((m.start(), m.end()), spans)
+            cue_idx.add(w_s)
+            
+    for m in VERB_RE.finditer(text):
+        w_s, _ = _char_to_word((m.start(), m.end()), spans)
+        verb_idx.add(w_s)
     out: List[Tuple[int, int, str]] = []
     for c in cue_idx:
         if any(abs(v - c) <= window for v in verb_idx):
@@ -65,10 +82,11 @@ def find_trial_registration_v3(text: str, block_chars: int = 400):
     blocks = [(h.end(), min(len(text), h.end() + block_chars)) for h in HEAD_REG_RE.finditer(text)]
     inside = lambda p: any(s <= p < e for s, e in blocks)
     out = []
-    for m in REG_CUE_RE.finditer(text):
-        if inside(m.start()):
-            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
-            out.append((w_s, w_e, m.group(0)))
+    for patt in [REG_CUE_RE, REGISTRY_ID_RE]:
+        for m in patt.finditer(text):
+            if inside(m.start()):
+                w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+                out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_trial_registration_v4(text: str, window: int = 6):
@@ -82,7 +100,8 @@ def find_trial_registration_v4(text: str, window: int = 6):
             out.append((w_s, w_e, snip))
     return out
 
-def find_trial_registration_v5(text: str):
+def find_trial_registration_v5(text: str) -> List[Tuple[int, int, str]]:
+    """Tier 5 – tight template: prospectively registered trial with registry ID."""
     return _collect([TIGHT_TEMPLATE_RE], text)
 
 TRIAL_REGISTRATION_FINDERS: Dict[str, Callable[[str], List[Tuple[int, int, str]]]] = {
