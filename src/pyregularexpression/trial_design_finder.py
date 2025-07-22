@@ -42,9 +42,9 @@ HEADING_DESIGN_RE = re.compile(r"(?m)^(?:study|trial)\s+design\s*[:\-]?\s*$", re
 TRAP_RE = re.compile(r"\b(?:trial\s+was\s+designed|study\s+was\s+designed|design\s+to\s+minimi[sz]e)\b", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:double[- ]?blind|placebo[- ]?controlled|multicenter|randomi(?:s|z)ed).*?(?:trial)"  # multiple qualifiers then 'trial'
-    r"|prospective\s+multicenter\s+cohort\s+study"
-    r"|phase\s+[iIvVxX]+\s+(?:open[- ]?label\s+)?trial",
+    r"(?:double[- ]?blind|placebo[- ]?controlled|randomi[sz]ed).*?\btrial\b"
+    r"|phase\s+[iIvVxX]+\s+(?:open[- ]?label\s+)?(?:placebo[- ]?controlled|randomi[sz]ed).*?\btrial\b"
+    r"|prospective(?:\s+\w+)*?\s+cohort\s+study",
     re.I,
 )
 
@@ -77,21 +77,18 @@ def find_trial_design_v1(text: str):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_trial_design_v2(text: str, window: int = 4):
+def find_trial_design_v2(text: str, window: int = 5):
     """Tier 2 – design term + qualifier within ±window OR two design terms close."""
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    qual_idx = {i for i, t in enumerate(tokens) if QUALIFIER_RE.fullmatch(t)}
-    design_idx = {i for i, t in enumerate(tokens) if DESIGN_TERM_RE.fullmatch(t)}
     out = []
-    for i in design_idx:
-        if any(q for q in qual_idx if abs(q - i) <= window):
-            w_s, w_e = _char_to_word(spans[i], spans)
-            out.append((w_s, w_e, tokens[i]))
-            continue
-        if any(j for j in design_idx if j != i and abs(j - i) <= window):
-            w_s, w_e = _char_to_word(spans[i], spans)
-            out.append((w_s, w_e, tokens[i]))
+
+    for i in range(len(tokens) - window + 1):
+        phrase = " ".join(tokens[i:i + window])
+        if TIGHT_TEMPLATE_RE.search(phrase):
+            w_s, w_e = _char_to_word((spans[i][0], spans[i + window - 1][1]), spans)
+            out.append((w_s, w_e, phrase))
+
     return out
 
 def find_trial_design_v3(text: str, block_chars: int = 400):
@@ -113,12 +110,14 @@ def find_trial_design_v4(text: str, window: int = 4):
     """Tier 4 – v2 + explicit design type token nearby."""
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    type_idx = {i for i, t in enumerate(tokens) if TYPE_TOKEN_RE.fullmatch(t)}
-    matches = find_trial_design_v2(text, window=window)
     out = []
-    for w_s, w_e, snip in matches:
-        if any(t for t in type_idx if w_s - window <= t <= w_e + window):
-            out.append((w_s, w_e, snip))
+
+    for i in range(len(tokens) - window + 1):
+        phrase = " ".join(tokens[i:i + window])
+        if TIGHT_TEMPLATE_RE.search(phrase):
+            w_s, w_e = _char_to_word((spans[i][0], spans[i + window - 1][1]), spans)
+            out.append((w_s, w_e, phrase))
+
     return out
 
 def find_trial_design_v5(text: str):
