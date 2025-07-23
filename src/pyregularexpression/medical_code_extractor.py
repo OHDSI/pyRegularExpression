@@ -15,30 +15,38 @@ Extract medical codes from the given text.
     - ATC: Drug codes (e.g., "A10BA02", "J01CA04", "C09AA05")
 '''
 
+import re
+
 medical_code_pattern = {
-    "ICD-10-CM": re.compile(r"\b[A-Z]\d{2}\.\d{1,4}\b"),
-    "ICD-10 with alphanumeric subcode": re.compile(r"\b[A-Z]\d{2}\.[A-Z]\d{1,3}\b"),
-    "ICD-9-CM numeric": re.compile(r"\b\d{3}\.\d{1,2}\b"),
-    "ICD-9-CM V/E codes": re.compile(r"\b[VE]\d{3}\.\d{1,2}\b"),
-    "CPT": re.compile(r"\b\d{5}(?:-\d{2})?\b"),
-    "LOINC": re.compile(r"\b\d{3,5}-\d\b"),
-    "SNOMED CT or RxNorm": re.compile(r"\b\d{6,9}\b"),
-    "ATC": re.compile(r"\b[A-Z]\d{2}[A-Z]{2}\d{2}\b")
+    "ICD-10-CM":     re.compile(r"\b[A-Z]\d{2}\.\d{1,4}\b"),
+    "ICD-10 sub":    re.compile(r"\b[A-Z]\d{2}\.[A-Z]\d{1,3}\b"),
+    "ICD-9 numeric": re.compile(r"\b\d{3}\.\d{1,2}\b"),
+    "ICD-9 V/E":     re.compile(r"\b[VE]\d{3}\.\d{1,2}\b"),
+    # Only CPT codes beginning with 9
+    "CPT":           re.compile(r"\b9\d{4}(?:-\d{2})?\b"),
+    "LOINC":         re.compile(r"\b\d{1,5}-\d\b"),
+    "SNOMED":        re.compile(r"\b\d{6,18}\b"),
+    "ATC":           re.compile(r"\b[A-Z]\d{2}[A-Z]{2}\d{2}\b"),
 }
 
 def extract_medical_codes(text: str):
+    # split only ICD-10 adjacency
+    text = re.sub(r"(?<=\.\d)(?=[A-Z])", " ", text)
+
     matches = []
-    for pattern in medical_code_pattern.values():
-        for match in pattern.finditer(text):
-            matches.append((match.start(), match.group()))
-    
-    # Sort by position in text
-    matches.sort()
-    
+    for system, pat in medical_code_pattern.items():
+        for m in pat.finditer(text):
+            code = m.group(0)
+
+            # drop ICD‑9 > 999.9
+            if system == "ICD-9 numeric" and float(code) > 999.9:
+                continue
+
+            # skip short SNOMED so CPT gets precedence
+            if system == "SNOMED" and re.fullmatch(r"\d{5}", code):
+                continue
+
+            matches.append((m.start(), code))
+
+    matches.sort(key=lambda x: x[0])
     return [code for _, code in matches]
-
-
-
-
-
-    
