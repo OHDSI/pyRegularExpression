@@ -25,7 +25,8 @@ def _token_spans(text: str) -> List[Tuple[int, int]]:
 def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[int, int]]) -> Tuple[int, int]:
     s_char, e_char = span
     w_start = next(i for i, (s, e) in enumerate(token_spans) if s <= s_char < e)
-    w_end = next(i for i, (s, e) in reversed(list(enumerate(token_spans))) if s < e_char <= e)
+#    w_end = next(i for i, (s, e) in reversed(list(enumerate(token_spans))) if s < e_char <= e)
+    w_end = next(i for i, (s, e) in reversed(list(enumerate(token_spans))) if s < e_char <= e or (s <= e_char <= e))
     return w_start, w_end
 
 # ─────────────────────────────
@@ -36,7 +37,10 @@ EXIT_CRITERION_TERM_RE = re.compile(
     re.I,
 )
 
-TEMPORAL_KEYWORD_RE = re.compile(r"\b(?:until|whichever|earlier|later|censored|exit)\b", re.I)
+TEMPORAL_KEYWORD_RE = re.compile(
+    r"\b(?:until|whichever|earlier|later|censored|exit)\b",
+    re.I,
+)
 
 EVENT_TOKEN_RE = re.compile(
     r"\b(?:death|transplant|end\s+of\s+study|\d{4}-\d{2}-\d{2}|31\s+dec\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})\b",
@@ -83,6 +87,8 @@ def find_exit_criterion_v2(text: str, window: int = 5) -> List[Tuple[int, int, s
     """Tier 2 – exit cue + temporal keyword within ±window tokens."""    
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
+    import string
+    normalized_tokens = [t.strip(string.punctuation).lower() for t in tokens]
     temp_idx = {i for i, t in enumerate(tokens) if TEMPORAL_KEYWORD_RE.fullmatch(t)}
     out: List[Tuple[int, int, str]] = []
     for m in EXIT_CRITERION_TERM_RE.finditer(text):
@@ -114,7 +120,7 @@ def find_exit_criterion_v4(text: str, window: int = 6) -> List[Tuple[int, int, s
     """Tier 4 – v2 + explicit event/time token."""    
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    event_idx = {i for i, t in enumerate(tokens) if EVENT_TOKEN_RE.fullmatch(t)}
+    event_idx = {i for i, t in enumerate(tokens) if EVENT_TOKEN_RE.search(t)}
     matches = find_exit_criterion_v2(text, window=window)
     out: List[Tuple[int, int, str]] = []
     for w_s, w_e, snip in matches:
