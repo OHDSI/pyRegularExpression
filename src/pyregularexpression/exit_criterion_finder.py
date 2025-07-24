@@ -43,7 +43,7 @@ TEMPORAL_KEYWORD_RE = re.compile(
 )
 
 EVENT_TOKEN_RE = re.compile(
-    r"\b(?:death|transplant|end\s+of\s+study|\d{4}-\d{2}-\d{2}|31\s+dec\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})\b",
+    r"\b(?:death|transplant|end[-\s]+of[-\s]+study|\d{4}-\d{2}-\d{2}|31\s+dec\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})\b",
     re.I,
 )
 
@@ -53,7 +53,7 @@ HEADING_EXIT_RE = re.compile(
 )
 
 TRAP_RE = re.compile(
-    r"\b(?:study\s+ended|end\s+of\s+study|lost\s+to\s+follow[- ]?up|withdrew|withdrawn|dropped\s+out|attrition|analysis)\b",
+    r"\b(?:study\s+ended|lost\s+to\s+follow[- ]?up|withdrew|withdrawn|dropped\s+out|attrition|analysis)\b",
     re.I,
 )
 
@@ -95,7 +95,7 @@ def find_exit_criterion_v2(text: str, window: int = 5) -> List[Tuple[int, int, s
         if TRAP_RE.search(text[max(0, m.start()-30): m.end()+30]):
             continue
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-        if any(t for t in temp_idx if w_s - window <= t <= w_e + window):
+        if any(w_s - window <= t <= w_e + window for t in temp_idx):
             out.append((w_s, w_e, m.group(0)))
     return out
 
@@ -116,7 +116,7 @@ def find_exit_criterion_v3(text: str, block_chars: int = 400) -> List[Tuple[int,
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_exit_criterion_v4(text: str, window: int = 6) -> List[Tuple[int, int, str]]:
+def find_exit_criterion_v4(text: str, window: int = 8) -> List[Tuple[int, int, str]]:
     """Tier 4 – v2 + explicit event/time token."""    
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
@@ -124,7 +124,7 @@ def find_exit_criterion_v4(text: str, window: int = 6) -> List[Tuple[int, int, s
     matches = find_exit_criterion_v2(text, window=window)
     out: List[Tuple[int, int, str]] = []
     for w_s, w_e, snip in matches:
-        if any(e for e in event_idx if w_s - window <= e <= w_e + window):
+        if any(w_s - window <= e <= w_e + window for e in event_idx):
             out.append((w_s, w_e, snip))
     return out
 

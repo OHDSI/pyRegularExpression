@@ -92,7 +92,7 @@ def test_find_exit_criterion_v3_light(text, should_match, test_id):
     ]
 )
 def test_find_exit_criterion_v4_light(text, should_match, test_id):
-    matches = find_exit_criterion_v4(text, window=6)
+    matches = find_exit_criterion_v4(text, window=8)
     assert bool(matches) == should_match, f"v4 failed for ID: {test_id}"
 
 # ────────────────────────────────────
