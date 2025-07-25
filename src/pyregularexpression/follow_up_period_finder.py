@@ -42,12 +42,19 @@ DURATION_RE = re.compile(r"\b\d+\s*(?:day|week|month|year)s?\b", re.I)
 
 QUALIFIER_RE = re.compile(r"\b(?:median|mean|average|followed\s+for)\b", re.I)
 
-HEADING_FOLLOW_RE = re.compile(r"(?m)^(?:follow[- ]?up\s+period|observation\s+period|duration\s+of\s+follow[- ]?up)\s*[:\-]?\s*$", re.I)
+HEADING_FOLLOW_RE = re.compile(
+    rf"(?m)^(?:follow{HYPHEN}?up\s+period|observation\s+period|duration\s+of\s+follow{HYPHEN}?up)\s*[:\-]?\s*$",
+    re.I,
+)
 
-TRAP_RE = re.compile(r"\b(?:follow[- ]?up\s+visit|clinic\s+visit|scheduled\s+follow[- ]?up)\b", re.I)
+TRAP_RE = re.compile(
+    rf"\b(?:follow{HYPHEN}?up\s+visit|clinic\s+visit|scheduled\s+follow{HYPHEN}?up)\b",
+    re.I,
+)
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:median|mean|average)?\s*follow[- ]?up\s+(?:was\s+)?\d+\s*(?:day|week|month|year)s?\b|followed\s+for\s+\d+\s*(?:day|week|month|year)s?",
+    rf"(?:median|mean|average)?\s*follow{HYPHEN}?up\s+(?:was\s+)?\d+\s*(?:day|week|month|year)s?\b"
+    r"|followed\s+for\s+\d+\s*(?:day|week|month|year)s?",
     re.I,
 )
 
