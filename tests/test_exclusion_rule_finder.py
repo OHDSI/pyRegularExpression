@@ -1,4 +1,5 @@
 # tests/test_exclusion_rule_finder.py
+
 """
 Complete test suite for exclusion_rule_finder.py.
 
@@ -120,3 +121,4 @@ def test_find_exclusion_rule_v4_light(text, should_match, test_id):
 def test_find_exclusion_rule_v5_light(text, should_match, test_id):
     matches = find_exclusion_rule_v5(text)
     assert bool(matches) == should_match, f"v5 failed for ID: {test_id}"
+

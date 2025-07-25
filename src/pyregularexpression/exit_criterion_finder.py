@@ -155,3 +155,4 @@ __all__ = [
 # handy aliases
 find_exit_criterion_high_recall = find_exit_criterion_v1
 find_exit_criterion_high_precision = find_exit_criterion_v5
+
