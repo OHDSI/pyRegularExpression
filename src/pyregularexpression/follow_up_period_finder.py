@@ -31,8 +31,10 @@ def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[i
 # ─────────────────────────────
 # 1.  Regex assets
 # ─────────────────────────────
+HYPHEN = r"[-\u2011]"  # matches ASCII hyphen or non‐breaking hyphen
+
 FOLLOW_UP_CUE_RE = re.compile(
-    r"\b(?:follow[- ]?up|followed)\b",
+    rf"\b(?:follow{HYPHEN}?up|followed)\b",
     re.I,
 )
 
