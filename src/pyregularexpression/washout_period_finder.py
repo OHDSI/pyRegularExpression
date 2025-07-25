@@ -129,20 +129,26 @@ def find_washout_period_v2(text: str, window: int = 8) -> List[Tuple[int, int, s
             break
     return out
 
-def find_washout_period_v3(text: str, block_chars: int = 400) -> List[Tuple[int, int, str]]:
-    """Tier 3 – inside Washout / Run‑in heading blocks."""    
+def find_washout_period_v3(text: str, block_chars: int = 500) -> List[Tuple[int, int, str]]:
+    """
+    Tier 3 – match any duration or cue inside heading blocks (e.g., "Washout Period:", "Run-in:", etc.).
+    """
     token_spans = _token_spans(text)
-    blocks: List[Tuple[int, int]] = []
-    for h in HEADING_WASHOUT_RE.finditer(text):
-        start = h.end()
-        nxt_blank = text.find("\n\n", start)
-        end = nxt_blank if 0 <= nxt_blank - start <= block_chars else start + block_chars
-        blocks.append((start, end))
-    def _inside(p): return any(s <= p < e for s, e in blocks)
     out: List[Tuple[int, int, str]] = []
-    for m in WASHOUT_CUE_RE.finditer(text):
-        if _inside(m.start()):
-            w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+
+    # Find all heading blocks like "Washout Period:", "Run-in:", etc.
+    for heading_match in HEADING_WASHOUT_RE.finditer(text):
+        block_start = heading_match.end()
+        block_end = block_start + block_chars
+        block = text[block_start:block_end]
+
+        # Look for both cue and duration matches inside this block
+        for m in list(WASHOUT_CUE_RE.finditer(block)) + list(DURATION_RE.finditer(block)):
+            if TRAP_RE.search(m.group(0)):
+                continue
+            abs_start = block_start + m.start()
+            abs_end = block_start + m.end()
+            w_s, w_e = _char_span_to_word_span((abs_start, abs_end), token_spans)
             out.append((w_s, w_e, m.group(0)))
     return out
 
