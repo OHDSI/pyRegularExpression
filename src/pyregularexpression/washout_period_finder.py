@@ -69,7 +69,7 @@ HEADING_WASHOUT_RE = re.compile(
 TRAP_RE = re.compile(r"\b(?:stopped|discontinued|due\s+to\s+side[- ]?effects|adverse\s+events?)\b", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:\d+\s*(?:month|week|year)s?\s+washout\s+(?:period\s+)?with\s+no\s+[A-Za-z\s]{1,40}|drug[- ]?free\s+for\s+\d+\s*(?:month|week|year)s?\s+before\s+index)",
+    r"(?:\d+[- ]?(?:month|week|year)s?\s+washout(?:\s+period)?\s+with\s+no\s+[a-z\s]{1,40}(?:\s+was\s+required|\s+was\s+implemented|\s+completed)?|drug[- ]?free\s+for\s+\d+[- ]?(?:month|week|year)s?\s+before\s+index)",
     re.I,
 )
 
@@ -176,7 +176,7 @@ def find_washout_period_v4(text: str, window: int = 8) -> List[Tuple[int, int, s
     return out
 
 def find_washout_period_v5(text: str) -> List[Tuple[int, int, str]]:
-    """Tier 5 – tight template with duration and drug‑free cue."""    
+    """Tier 5 – tight template with cue + duration + 'no drugs'."""
     return _collect([TIGHT_TEMPLATE_RE], text)
 
 # ─────────────────────────────
