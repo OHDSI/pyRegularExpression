@@ -20,6 +20,8 @@ HYPHEN = r"[-\u2011]"
 
 SEP = rf"(?:{HYPHEN}|\s+)"
 
+NUMBER_WORD = r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+
 TOKEN_RE = re.compile(r"\S+")
 
 def _token_spans(text: str) -> List[Tuple[int, int]]:
@@ -49,11 +51,20 @@ WASHOUT_CUE_RE = re.compile(
     re.IGNORECASE | re.VERBOSE
 )
 
-DURATION_RE = re.compile(r"\b\d+\s*(?:day|week|month|year)s?\b", re.I)
+DURATION_RE = re.compile(
+    rf"\b(?:(\d+{HYPHEN}?|{NUMBER_WORD})\s*(?:day|week|month|year)s?)\b",
+    re.I
+)
 
-BEFORE_ANCHOR_RE = re.compile(r"\b(?:before|prior\s+to|preceding|pre[- ]index|pre[- ]baseline)\b", re.I)
+BEFORE_ANCHOR_RE = re.compile(r"\b(?:before|prior\s+to|preceding|pre[- ]?index|pre[- ]?baseline)\b", re.I)
 
-HEADING_WASHOUT_RE = re.compile(r"(?m)^(?:washout\s+period|run[- ]?in|clearance\s+period)\s*[:\-]?\s*$", re.I)
+HEADING_WASHOUT_RE = re.compile(
+    rf"(?im)^ *(?:" 
+       rf"washout(?:{SEP}period)|"
+       rf"run{SEP}in|"
+       rf"clearance(?:{SEP}period)"
+    r")\s*[:\-]"
+)
 
 TRAP_RE = re.compile(r"\b(?:stopped|discontinued|due\s+to\s+side[- ]?effects|adverse\s+events?)\b", re.I)
 
