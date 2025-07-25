@@ -101,14 +101,19 @@ def find_follow_up_period_v1(text: str) -> List[Tuple[int,int,str]]:
         results.append((w_s, w_e, snippet))
     return results
 
-def find_follow_up_period_v2(text: str, window: int = 5) -> List[Tuple[int, int, str]]:
-    """Tier 2 – cue + numeric duration within ±window tokens."""
+def find_follow_up_period_v2(text: str, window: int = 5):
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    dur_idx = {i for i, t in enumerate(tokens) if DURATION_RE.fullmatch(t)}
-    out: List[Tuple[int, int, str]] = []
+    # find all durations anywhere in the text, map their start positions to word‑indices
+    dur_spans = [ (m.start(),m.end()) for m in DURATION_RE.finditer(text) ]
+    dur_idx   = {
+        _char_span_to_word_span(span, token_spans)[0]
+        for span in dur_spans
+    }
+
+    out = []
     for m in FOLLOW_UP_CUE_RE.finditer(text):
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        # same window logic now sees your multi‑token durations
         if any(d for d in dur_idx if w_s - window <= d <= w_e + window):
             out.append((w_s, w_e, m.group(0)))
     return out
