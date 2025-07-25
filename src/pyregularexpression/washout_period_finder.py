@@ -35,8 +35,18 @@ def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[i
 # 1.  Regex assets
 # ─────────────────────────────
 WASHOUT_CUE_RE = re.compile(
-    r"\b(?:washout\s+period|washout|run[- ]?in|clearance\s+period|drug[- ]?free|treatment[- ]?free|no\s+therapy)\b",
-    re.I,
+    rf"""\b(
+        washout(?:{SEP}period)?        |   # "washout", "washout period", "washout‑period"
+        run{SEP}in                      |   # "run in", "run‑in"
+        clearance(?:{SEP}period)?      |   # "clearance", "clearance period", "clearance‑period"
+        treatment{SEP}free              |   # "treatment free", "treatment‑free"
+        drug{SEP}free                   |   # "drug free", "drug‑free"
+        no\ therapy                     |   # "no therapy"
+        no\ medications                 |   # "no medications"
+        no\ drugs                       |
+        no\ antihypertensives          # catch "No antihypertensives were used."
+    )\b""",
+    re.IGNORECASE | re.VERBOSE
 )
 
 DURATION_RE = re.compile(r"\b\d+\s*(?:day|week|month|year)s?\b", re.I)
