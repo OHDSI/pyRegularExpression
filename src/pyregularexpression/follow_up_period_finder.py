@@ -72,12 +72,34 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
             out.append((w_s, w_e, m.group(0)))
     return out
 
+def _char_span_to_char_index(span: Tuple[int,int], text: str) -> int:
+    # If you’re storing char‑spans alongside token‑spans anyway, use that.
+    # But since _collect already knows the char‐span, you could also
+    # return m.end() directly there instead of (w_s, w_e).
+    return span[1]  # end‐char index
+
 # ─────────────────────────────
 # 3.  Finder variants
 # ─────────────────────────────
-def find_follow_up_period_v1(text: str) -> List[Tuple[int, int, str]]:
-    """Tier 1 – any follow‑up cue."""
-    return _collect([FOLLOW_UP_CUE_RE], text)
+def find_follow_up_period_v1(text: str) -> List[Tuple[int,int,str]]:
+    # Tier 1 – high recall, but if the entire text mentions a visit-trap, bail out immediately
+    if TRAP_RE.search(text):
+        return []
+
+    results: List[Tuple[int,int,str]] = []
+    for m in FOLLOW_UP_CUE_RE.finditer(text):
+        snippet = m.group(0)
+        # 1) Skip any mini‐trap inside the match itself
+        if TRAP_RE.search(snippet):
+            continue
+        # 2) If it’s exactly “followed”, require it to be followed by “for”
+        if snippet.lower() == 'followed' and not re.match(r"\s+for\b", text[m.end():], re.I):
+            continue
+        # 3) Map char indices to token indices, then record
+        token_spans = _token_spans(text)
+        w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        results.append((w_s, w_e, snippet))
+    return results
 
 def find_follow_up_period_v2(text: str, window: int = 5) -> List[Tuple[int, int, str]]:
     """Tier 2 – cue + numeric duration within ±window tokens."""
