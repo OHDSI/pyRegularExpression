@@ -139,13 +139,16 @@ def find_follow_up_period_v3(text: str, block_chars: int = 400):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_follow_up_period_v4(text: str, window: int = 6) -> List[Tuple[int, int, str]]:
-    """Tier 4 – v2 + qualifier (median/mean/followed for) near cue."""
+def find_follow_up_period_v4(text: str, window: int = 6):
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    qual_idx = {i for i, t in enumerate(tokens) if QUALIFIER_RE.fullmatch(t)}
+    qual_spans = [(m.start(),m.end()) for m in QUALIFIER_RE.finditer(text)]
+    qual_idx   = {
+        _char_span_to_word_span(span, token_spans)[0]
+        for span in qual_spans
+    }
+
     matches = find_follow_up_period_v2(text, window=window)
-    out: List[Tuple[int, int, str]] = []
+    out = []
     for w_s, w_e, snip in matches:
         if any(q for q in qual_idx if w_s - window <= q <= w_e + window):
             out.append((w_s, w_e, snip))
