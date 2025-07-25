@@ -18,6 +18,7 @@ from pyregularexpression.exit_criterion_finder import (
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall with trap filtering)
 # ────────────────────────────────────
+
 @pytest.mark.parametrize(
     "text, should_match, test_id",
     [

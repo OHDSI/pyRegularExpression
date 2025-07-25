@@ -122,3 +122,4 @@ def test_find_exclusion_rule_v5_light(text, should_match, test_id):
     matches = find_exclusion_rule_v5(text)
     assert bool(matches) == should_match, f"v5 failed for ID: {test_id}"
 
+

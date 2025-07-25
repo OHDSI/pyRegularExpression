@@ -17,6 +17,7 @@ from typing import List, Tuple, Sequence, Dict, Callable
 # ─────────────────────────────
 # 0.  Shared utilities
 # ─────────────────────────────
+
 TOKEN_RE = re.compile(r"\S+")
 
 def _token_spans(text: str) -> List[Tuple[int, int]]:
