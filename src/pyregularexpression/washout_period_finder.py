@@ -18,6 +18,8 @@ from typing import List, Tuple, Sequence, Dict, Callable
 # allow normal *or* non‑breaking hyphens
 HYPHEN = r"[-\u2011]"
 
+SEP = rf"(?:{HYPHEN}|\s+)"
+
 TOKEN_RE = re.compile(r"\S+")
 
 def _token_spans(text: str) -> List[Tuple[int, int]]:
