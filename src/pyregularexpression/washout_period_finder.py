@@ -1,5 +1,5 @@
-
-"""washout_period_finder.py – precision/recall ladder for *washout period* definitions.
+"""
+washout_period_finder.py – precision/recall ladder for *washout period* definitions.
 Five variants (v1‑v5):
     • v1 – high recall: any washout/run‑in/drug‑free cue
     • v2 – cue + explicit duration (months / weeks / years) or “drug‑free / treatment‑free” within ±window tokens
@@ -15,6 +15,13 @@ from typing import List, Tuple, Sequence, Dict, Callable
 # ─────────────────────────────
 # 0.  Shared utilities
 # ─────────────────────────────
+# allow normal *or* non‑breaking hyphens
+HYPHEN = r"[-\u2011]"
+
+SEP = rf"(?:{HYPHEN}|\s+)"
+
+NUMBER_WORD = r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+
 TOKEN_RE = re.compile(r"\S+")
 
 def _token_spans(text: str) -> List[Tuple[int, int]]:
@@ -30,20 +37,39 @@ def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[i
 # 1.  Regex assets
 # ─────────────────────────────
 WASHOUT_CUE_RE = re.compile(
-    r"\b(?:washout\s+period|washout|run[- ]?in|clearance\s+period|drug[- ]?free|treatment[- ]?free|no\s+therapy)\b",
-    re.I,
+    rf"""\b(
+        washout(?:{SEP}period)?        |   # "washout", "washout period", "washout‑period"
+        run{SEP}in                      |   # "run in", "run‑in"
+        clearance(?:{SEP}period)?      |   # "clearance", "clearance period", "clearance‑period"
+        treatment{SEP}free              |   # "treatment free", "treatment‑free"
+        drug{SEP}free                   |   # "drug free", "drug‑free"
+        no\ therapy                     |   # "no therapy"
+        no\ medications                 |   # "no medications"
+        no\ drugs                       |
+        no\ antihypertensives          # catch "No antihypertensives were used."
+    )\b""",
+    re.IGNORECASE | re.VERBOSE
 )
 
-DURATION_RE = re.compile(r"\b\d+\s*(?:day|week|month|year)s?\b", re.I)
+DURATION_RE = re.compile(
+    rf"\b(?:(\d+{HYPHEN}?|{NUMBER_WORD})\s*(?:day|week|month|year)s?)\b",
+    re.I
+)
 
-BEFORE_ANCHOR_RE = re.compile(r"\b(?:before|prior\s+to|preceding|pre[- ]index|pre[- ]baseline)\b", re.I)
+BEFORE_ANCHOR_RE = re.compile(r"\b(?:before|prior\s+to|preceding|pre[- ]?index|pre[- ]?baseline)\b", re.I)
 
-HEADING_WASHOUT_RE = re.compile(r"(?m)^(?:washout\s+period|run[- ]?in|clearance\s+period)\s*[:\-]?\s*$", re.I)
+HEADING_WASHOUT_RE = re.compile(
+    rf"(?im)^ *(?:" 
+       rf"washout(?:{SEP}period)|"
+       rf"run{SEP}in|"
+       rf"clearance(?:{SEP}period)"
+    r")\s*[:\-]"
+)
 
 TRAP_RE = re.compile(r"\b(?:stopped|discontinued|due\s+to\s+side[- ]?effects|adverse\s+events?)\b", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:\d+\s*(?:month|week|year)s?\s+washout\s+(?:period\s+)?with\s+no\s+[A-Za-z\s]{1,40}|drug[- ]?free\s+for\s+\d+\s*(?:month|week|year)s?\s+before\s+index)",
+    r"(?:\d+[- ]?(?:month|week|year)s?\s+washout(?:\s+period)?\s+with\s+no\s+[a-z\s]{1,40}(?:\s+was\s+required|\s+was\s+implemented|\s+completed)?|drug[- ]?free\s+for\s+\d+[- ]?(?:month|week|year)s?\s+before\s+index)",
     re.I,
 )
 
@@ -61,6 +87,14 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
             out.append((w_s, w_e, m.group(0)))
     return out
 
+def _char_to_token_index_map(text: str, token_spans: List[Tuple[int,int]]) -> Dict[int,int]:
+    """Map each character position to its token index."""
+    char2tok = {}
+    for tok_i, (s,e) in enumerate(token_spans):
+        for pos in range(s, e):
+            char2tok[pos] = tok_i
+    return char2tok
+
 # ─────────────────────────────
 # 3.  Finder variants
 # ─────────────────────────────
@@ -68,51 +102,87 @@ def find_washout_period_v1(text: str) -> List[Tuple[int, int, str]]:
     """Tier 1 – any washout/run‑in cue."""    
     return _collect([WASHOUT_CUE_RE], text)
 
-def find_washout_period_v2(text: str, window: int = 5) -> List[Tuple[int, int, str]]:
-    """Tier 2 – cue + duration or ‘drug‑free’ phrase nearby."""    
+def find_washout_period_v2(text: str, window: int = 8) -> List[Tuple[int, int, str]]:
+    """Tier 2 – cue + duration within ±window characters."""
+    out = []
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    dur_idx = {i for i, t in enumerate(tokens) if DURATION_RE.fullmatch(t)}
-    out: List[Tuple[int, int, str]] = []
-    for m in WASHOUT_CUE_RE.finditer(text):
-        if TRAP_RE.search(text[max(0, m.start()-30):m.end()+30]):
+    char2tok = _char_to_token_index_map(text, token_spans)
+
+    for cue_match in WASHOUT_CUE_RE.finditer(text):
+        cue_tok = char2tok.get(cue_match.start())
+        if cue_tok is None:
             continue
-        w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-        if any(d for d in dur_idx if w_s - window <= d <= w_e + window):
+        for dur_match in DURATION_RE.finditer(text):
+            dur_tok = char2tok.get(dur_match.start())
+            if dur_tok is None or abs(cue_tok - dur_tok) > window:
+                continue
+            # now check trap
+            if TRAP_RE.search(text[cue_match.start(): dur_match.end()]):
+                continue
+            # good: build span
+            span = (
+                min(cue_match.start(), dur_match.start()),
+                max(cue_match.end(),   dur_match.end())
+            )
+            w_s, w_e = _char_span_to_word_span(span, token_spans)
+            out.append((w_s, w_e, text[span[0]:span[1]]))
+            break
+    return out
+
+def find_washout_period_v3(text: str, block_chars: int = 500) -> List[Tuple[int, int, str]]:
+    """
+    Tier 3 – match any duration or cue inside heading blocks (e.g., "Washout Period:", "Run-in:", etc.).
+    """
+    token_spans = _token_spans(text)
+    out: List[Tuple[int, int, str]] = []
+
+    # Find all heading blocks like "Washout Period:", "Run-in:", etc.
+    for heading_match in HEADING_WASHOUT_RE.finditer(text):
+        block_start = heading_match.end()
+        block_end = block_start + block_chars
+        block = text[block_start:block_end]
+
+        # Look for both cue and duration matches inside this block
+        for m in list(WASHOUT_CUE_RE.finditer(block)) + list(DURATION_RE.finditer(block)):
+            if TRAP_RE.search(m.group(0)):
+                continue
+            abs_start = block_start + m.start()
+            abs_end = block_start + m.end()
+            w_s, w_e = _char_span_to_word_span((abs_start, abs_end), token_spans)
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_washout_period_v3(text: str, block_chars: int = 400) -> List[Tuple[int, int, str]]:
-    """Tier 3 – inside Washout / Run‑in heading blocks."""    
+def find_washout_period_v4(text: str, window: int = 8) -> List[Tuple[int, int, str]]:
+    """Tier 4 – cue + duration + anchor (e.g., before/prior to)."""
     token_spans = _token_spans(text)
-    blocks: List[Tuple[int, int]] = []
-    for h in HEADING_WASHOUT_RE.finditer(text):
-        start = h.end()
-        nxt_blank = text.find("\n\n", start)
-        end = nxt_blank if 0 <= nxt_blank - start <= block_chars else start + block_chars
-        blocks.append((start, end))
-    def _inside(p): return any(s <= p < e for s, e in blocks)
-    out: List[Tuple[int, int, str]] = []
-    for m in WASHOUT_CUE_RE.finditer(text):
-        if _inside(m.start()):
-            w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-            out.append((w_s, w_e, m.group(0)))
-    return out
+    out = []
+    char2tok = _char_to_token_index_map(text, token_spans)
 
-def find_washout_period_v4(text: str, window: int = 6) -> List[Tuple[int, int, str]]:
-    """Tier 4 – v2 + temporal anchor before index/baseline."""    
-    token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    anchor_idx = {i for i, t in enumerate(tokens) if BEFORE_ANCHOR_RE.fullmatch(t)}
-    matches = find_washout_period_v2(text, window=window)
-    out: List[Tuple[int, int, str]] = []
-    for w_s, w_e, snip in matches:
-        if any(a for a in anchor_idx if w_s - window <= a <= w_e + window):
-            out.append((w_s, w_e, snip))
+    for cue_match in WASHOUT_CUE_RE.finditer(text):
+        cue_tok = char2tok.get(cue_match.start())
+        if cue_tok is None:
+            continue
+        for dur_match in DURATION_RE.finditer(text):
+            dur_tok = char2tok.get(dur_match.start())
+            if dur_tok is None or abs(cue_tok - dur_tok) > window:
+                continue
+            # check anchor + trap in the 40‑char snippet
+            snippet = text[
+                min(cue_match.start(), dur_match.start()):
+                max(cue_match.end(), dur_match.end()) + 40
+            ]
+            if BEFORE_ANCHOR_RE.search(snippet) and not TRAP_RE.search(snippet):
+                span = (
+                    min(cue_match.start(), dur_match.start()),
+                    max(cue_match.end(),   dur_match.end())
+                )
+                w_s, w_e = _char_span_to_word_span(span, token_spans)
+                out.append((w_s, w_e, text[span[0]:span[1]]))
+                break
     return out
 
 def find_washout_period_v5(text: str) -> List[Tuple[int, int, str]]:
-    """Tier 5 – tight template with duration and drug‑free cue."""    
+    """Tier 5 – tight template with cue + duration + 'no drugs'."""
     return _collect([TIGHT_TEMPLATE_RE], text)
 
 # ─────────────────────────────
