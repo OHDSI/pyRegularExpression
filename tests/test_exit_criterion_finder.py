@@ -111,3 +111,4 @@ def test_find_exit_criterion_v4_light(text, should_match, test_id):
 def test_find_exit_criterion_v5_light(text, should_match, test_id):
     matches = find_exit_criterion_v5(text)
     assert bool(matches) == should_match, f"v5 failed for ID: {test_id}"
+    
