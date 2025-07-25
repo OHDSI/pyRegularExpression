@@ -87,6 +87,14 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
             out.append((w_s, w_e, m.group(0)))
     return out
 
+def _char_to_token_index_map(text: str, token_spans: List[Tuple[int,int]]) -> Dict[int,int]:
+    """Map each character position to its token index."""
+    char2tok = {}
+    for tok_i, (s,e) in enumerate(token_spans):
+        for pos in range(s, e):
+            char2tok[pos] = tok_i
+    return char2tok
+
 # ─────────────────────────────
 # 3.  Finder variants
 # ─────────────────────────────
