@@ -102,18 +102,31 @@ def find_washout_period_v1(text: str) -> List[Tuple[int, int, str]]:
     """Tier 1 – any washout/run‑in cue."""    
     return _collect([WASHOUT_CUE_RE], text)
 
-def find_washout_period_v2(text: str, window: int = 5) -> List[Tuple[int, int, str]]:
-    """Tier 2 – cue + duration or ‘drug‑free’ phrase nearby."""    
+def find_washout_period_v2(text: str, window: int = 8) -> List[Tuple[int, int, str]]:
+    """Tier 2 – cue + duration within ±window characters."""
+    out = []
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    dur_idx = {i for i, t in enumerate(tokens) if DURATION_RE.fullmatch(t)}
-    out: List[Tuple[int, int, str]] = []
-    for m in WASHOUT_CUE_RE.finditer(text):
-        if TRAP_RE.search(text[max(0, m.start()-30):m.end()+30]):
+    char2tok = _char_to_token_index_map(text, token_spans)
+
+    for cue_match in WASHOUT_CUE_RE.finditer(text):
+        cue_tok = char2tok.get(cue_match.start())
+        if cue_tok is None:
             continue
-        w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-        if any(d for d in dur_idx if w_s - window <= d <= w_e + window):
-            out.append((w_s, w_e, m.group(0)))
+        for dur_match in DURATION_RE.finditer(text):
+            dur_tok = char2tok.get(dur_match.start())
+            if dur_tok is None or abs(cue_tok - dur_tok) > window:
+                continue
+            # now check trap
+            if TRAP_RE.search(text[cue_match.start(): dur_match.end()]):
+                continue
+            # good: build span
+            span = (
+                min(cue_match.start(), dur_match.start()),
+                max(cue_match.end(),   dur_match.end())
+            )
+            w_s, w_e = _char_span_to_word_span(span, token_spans)
+            out.append((w_s, w_e, text[span[0]:span[1]]))
+            break
     return out
 
 def find_washout_period_v3(text: str, block_chars: int = 400) -> List[Tuple[int, int, str]]:
