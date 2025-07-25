@@ -146,16 +146,33 @@ def find_washout_period_v3(text: str, block_chars: int = 400) -> List[Tuple[int,
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_washout_period_v4(text: str, window: int = 6) -> List[Tuple[int, int, str]]:
-    """Tier 4 – v2 + temporal anchor before index/baseline."""    
+def find_washout_period_v4(text: str, window: int = 8) -> List[Tuple[int, int, str]]:
+    """Tier 4 – cue + duration + anchor (e.g., before/prior to)."""
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    anchor_idx = {i for i, t in enumerate(tokens) if BEFORE_ANCHOR_RE.fullmatch(t)}
-    matches = find_washout_period_v2(text, window=window)
-    out: List[Tuple[int, int, str]] = []
-    for w_s, w_e, snip in matches:
-        if any(a for a in anchor_idx if w_s - window <= a <= w_e + window):
-            out.append((w_s, w_e, snip))
+    out = []
+    char2tok = _char_to_token_index_map(text, token_spans)
+
+    for cue_match in WASHOUT_CUE_RE.finditer(text):
+        cue_tok = char2tok.get(cue_match.start())
+        if cue_tok is None:
+            continue
+        for dur_match in DURATION_RE.finditer(text):
+            dur_tok = char2tok.get(dur_match.start())
+            if dur_tok is None or abs(cue_tok - dur_tok) > window:
+                continue
+            # check anchor + trap in the 40‑char snippet
+            snippet = text[
+                min(cue_match.start(), dur_match.start()):
+                max(cue_match.end(), dur_match.end()) + 40
+            ]
+            if BEFORE_ANCHOR_RE.search(snippet) and not TRAP_RE.search(snippet):
+                span = (
+                    min(cue_match.start(), dur_match.start()),
+                    max(cue_match.end(),   dur_match.end())
+                )
+                w_s, w_e = _char_span_to_word_span(span, token_spans)
+                out.append((w_s, w_e, text[span[0]:span[1]]))
+                break
     return out
 
 def find_washout_period_v5(text: str) -> List[Tuple[int, int, str]]:
