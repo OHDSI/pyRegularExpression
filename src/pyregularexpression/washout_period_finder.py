@@ -1,5 +1,5 @@
-
-"""washout_period_finder.py – precision/recall ladder for *washout period* definitions.
+"""
+washout_period_finder.py – precision/recall ladder for *washout period* definitions.
 Five variants (v1‑v5):
     • v1 – high recall: any washout/run‑in/drug‑free cue
     • v2 – cue + explicit duration (months / weeks / years) or “drug‑free / treatment‑free” within ±window tokens
@@ -15,6 +15,9 @@ from typing import List, Tuple, Sequence, Dict, Callable
 # ─────────────────────────────
 # 0.  Shared utilities
 # ─────────────────────────────
+# allow normal *or* non‑breaking hyphens
+HYPHEN = r"[-\u2011]"
+
 TOKEN_RE = re.compile(r"\S+")
 
 def _token_spans(text: str) -> List[Tuple[int, int]]:
