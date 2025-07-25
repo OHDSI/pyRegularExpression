@@ -118,20 +118,24 @@ def find_follow_up_period_v2(text: str, window: int = 5):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_follow_up_period_v3(text: str, block_chars: int = 400) -> List[Tuple[int, int, str]]:
-    """Tier 3 – inside Follow‑up period heading blocks."""
+def find_follow_up_period_v3(text: str, block_chars: int = 400):
     token_spans = _token_spans(text)
-    blocks: List[Tuple[int, int]] = []
+    # first locate and filter heading blocks
+    blocks = []
     for h in HEADING_FOLLOW_RE.finditer(text):
         start = h.end()
-        nxt_blank = text.find("\n\n", start)
-        end = nxt_blank if 0 <= nxt_blank - start <= block_chars else start + block_chars
-        blocks.append((start, end))
-    def _inside(pos: int): return any(s <= pos < e for s, e in blocks)
-    out: List[Tuple[int, int, str]] = []
+        nxt   = text.find("\n\n", start)
+        end   = nxt if 0 <= nxt - start <= block_chars else start + block_chars
+        # require at least one duration in that slice
+        if DURATION_RE.search(text[start:end]):
+            blocks.append((start, end))
+
+    def inside(pos): return any(s <= pos < e for s,e in blocks)
+
+    out = []
     for m in FOLLOW_UP_CUE_RE.finditer(text):
-        if _inside(m.start()):
-            w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        if inside(m.start()):
+            w_s, w_e = _char_span_to_word_span((m.start(),m.end()), token_spans)
             out.append((w_s, w_e, m.group(0)))
     return out
 
