@@ -89,14 +89,19 @@ def find_entry_event_v1(text: str):
 
 def find_entry_event_v2(text: str, window: int = 6):
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    inc_idx = {i for i, t in enumerate(tokens) if INCLUSION_VERB_RE.fullmatch(t)}
+    inc_matches = [
+        _char_span_to_word_span((m.start(), m.end()), token_spans)
+        for m in INCLUSION_VERB_RE.finditer(text)
+    ]
     out = []
     for m in ENTRY_EVENT_TERM_RE.finditer(text):
-        if TRAP_RE.search(text[max(0, m.start()-20):m.end()+20]):
+        context = text[max(0, m.start() - 50):m.end() + 50]
+        if TRAP_RE.search(context):
             continue
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-        if any(i for i in inc_idx if w_s - window <= i <= w_e + window):
+        if any(inc_w_s - window <= w_s <= inc_w_e + window or
+               inc_w_s - window <= w_e <= inc_w_e + window
+               for inc_w_s, inc_w_e in inc_matches):
             out.append((w_s, w_e, m.group(0)))
     return out
 
