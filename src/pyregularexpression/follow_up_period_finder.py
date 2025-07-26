@@ -31,8 +31,10 @@ def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[i
 # ─────────────────────────────
 # 1.  Regex assets
 # ─────────────────────────────
+HYPHEN = r"[-\u2011]"  # matches ASCII hyphen or non‐breaking hyphen
+
 FOLLOW_UP_CUE_RE = re.compile(
-    r"\b(?:follow[- ]?up|followed)\b",
+    rf"\b(?:follow{HYPHEN}?up|followed)\b",
     re.I,
 )
 
@@ -40,12 +42,19 @@ DURATION_RE = re.compile(r"\b\d+\s*(?:day|week|month|year)s?\b", re.I)
 
 QUALIFIER_RE = re.compile(r"\b(?:median|mean|average|followed\s+for)\b", re.I)
 
-HEADING_FOLLOW_RE = re.compile(r"(?m)^(?:follow[- ]?up\s+period|observation\s+period|duration\s+of\s+follow[- ]?up)\s*[:\-]?\s*$", re.I)
+HEADING_FOLLOW_RE = re.compile(
+    rf"(?m)^(?:follow{HYPHEN}?up\s+period|observation\s+period|duration\s+of\s+follow{HYPHEN}?up)\s*[:\-]?\s*$",
+    re.I,
+)
 
-TRAP_RE = re.compile(r"\b(?:follow[- ]?up\s+visit|clinic\s+visit|scheduled\s+follow[- ]?up)\b", re.I)
+TRAP_RE = re.compile(
+    rf"\b(?:follow{HYPHEN}?up\s+visit|clinic\s+visit|scheduled\s+follow{HYPHEN}?up)\b",
+    re.I,
+)
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:median|mean|average)?\s*follow[- ]?up\s+(?:was\s+)?\d+\s*(?:day|week|month|year)s?\b|followed\s+for\s+\d+\s*(?:day|week|month|year)s?",
+    rf"(?:median|mean|average)?\s*follow{HYPHEN}?up\s+(?:was\s+)?\d+\s*(?:day|week|month|year)s?\b"
+    r"|followed\s+for\s+\d+\s*(?:day|week|month|year)s?",
     re.I,
 )
 
@@ -63,49 +72,83 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
             out.append((w_s, w_e, m.group(0)))
     return out
 
+def _char_span_to_char_index(span: Tuple[int,int], text: str) -> int:
+    # If you’re storing char‑spans alongside token‑spans anyway, use that.
+    # But since _collect already knows the char‐span, you could also
+    # return m.end() directly there instead of (w_s, w_e).
+    return span[1]  # end‐char index
+
 # ─────────────────────────────
 # 3.  Finder variants
 # ─────────────────────────────
-def find_follow_up_period_v1(text: str) -> List[Tuple[int, int, str]]:
-    """Tier 1 – any follow‑up cue."""
-    return _collect([FOLLOW_UP_CUE_RE], text)
+def find_follow_up_period_v1(text: str) -> List[Tuple[int,int,str]]:
+    # Tier 1 – high recall, but if the entire text mentions a visit-trap, bail out immediately
+    if TRAP_RE.search(text):
+        return []
 
-def find_follow_up_period_v2(text: str, window: int = 5) -> List[Tuple[int, int, str]]:
-    """Tier 2 – cue + numeric duration within ±window tokens."""
+    results: List[Tuple[int,int,str]] = []
+    for m in FOLLOW_UP_CUE_RE.finditer(text):
+        snippet = m.group(0)
+        # 1) Skip any mini‐trap inside the match itself
+        if TRAP_RE.search(snippet):
+            continue
+        # 2) If it’s exactly “followed”, require it to be followed by “for”
+        if snippet.lower() == 'followed' and not re.match(r"\s+for\b", text[m.end():], re.I):
+            continue
+        # 3) Map char indices to token indices, then record
+        token_spans = _token_spans(text)
+        w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        results.append((w_s, w_e, snippet))
+    return results
+
+def find_follow_up_period_v2(text: str, window: int = 5):
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    dur_idx = {i for i, t in enumerate(tokens) if DURATION_RE.fullmatch(t)}
-    out: List[Tuple[int, int, str]] = []
+    # find all durations anywhere in the text, map their start positions to word‑indices
+    dur_spans = [ (m.start(),m.end()) for m in DURATION_RE.finditer(text) ]
+    dur_idx   = {
+        _char_span_to_word_span(span, token_spans)[0]
+        for span in dur_spans
+    }
+
+    out = []
     for m in FOLLOW_UP_CUE_RE.finditer(text):
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        # same window logic now sees your multi‑token durations
         if any(d for d in dur_idx if w_s - window <= d <= w_e + window):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_follow_up_period_v3(text: str, block_chars: int = 400) -> List[Tuple[int, int, str]]:
-    """Tier 3 – inside Follow‑up period heading blocks."""
+def find_follow_up_period_v3(text: str, block_chars: int = 400):
     token_spans = _token_spans(text)
-    blocks: List[Tuple[int, int]] = []
+    # first locate and filter heading blocks
+    blocks = []
     for h in HEADING_FOLLOW_RE.finditer(text):
         start = h.end()
-        nxt_blank = text.find("\n\n", start)
-        end = nxt_blank if 0 <= nxt_blank - start <= block_chars else start + block_chars
-        blocks.append((start, end))
-    def _inside(pos: int): return any(s <= pos < e for s, e in blocks)
-    out: List[Tuple[int, int, str]] = []
+        nxt   = text.find("\n\n", start)
+        end   = nxt if 0 <= nxt - start <= block_chars else start + block_chars
+        # require at least one duration in that slice
+        if DURATION_RE.search(text[start:end]):
+            blocks.append((start, end))
+
+    def inside(pos): return any(s <= pos < e for s,e in blocks)
+
+    out = []
     for m in FOLLOW_UP_CUE_RE.finditer(text):
-        if _inside(m.start()):
-            w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        if inside(m.start()):
+            w_s, w_e = _char_span_to_word_span((m.start(),m.end()), token_spans)
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_follow_up_period_v4(text: str, window: int = 6) -> List[Tuple[int, int, str]]:
-    """Tier 4 – v2 + qualifier (median/mean/followed for) near cue."""
+def find_follow_up_period_v4(text: str, window: int = 6):
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    qual_idx = {i for i, t in enumerate(tokens) if QUALIFIER_RE.fullmatch(t)}
+    qual_spans = [(m.start(),m.end()) for m in QUALIFIER_RE.finditer(text)]
+    qual_idx   = {
+        _char_span_to_word_span(span, token_spans)[0]
+        for span in qual_spans
+    }
+
     matches = find_follow_up_period_v2(text, window=window)
-    out: List[Tuple[int, int, str]] = []
+    out = []
     for w_s, w_e, snip in matches:
         if any(q for q in qual_idx if w_s - window <= q <= w_e + window):
             out.append((w_s, w_e, snip))
