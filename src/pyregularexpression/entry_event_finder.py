@@ -77,7 +77,15 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
 
 # Finder variants ----------------------------------------------------------
 def find_entry_event_v1(text: str):
-    return _collect([ENTRY_EVENT_TERM_RE], text)
+    token_spans = _token_spans(text)
+    out = []
+    for m in ENTRY_EVENT_TERM_RE.finditer(text):
+        context = text[max(0, m.start() - 50):m.end() + 50]
+        if TRAP_RE.search(context):
+            continue
+        w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        out.append((w_s, w_e, m.group(0)))
+    return out
 
 def find_entry_event_v2(text: str, window: int = 6):
     token_spans = _token_spans(text)
