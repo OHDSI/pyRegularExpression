@@ -37,7 +37,17 @@ FIRST_INITIAL_RE = re.compile(r"\b(?:first|initial)\s+(?:[A-Za-z]+)\b", re.I)
 
 HEADING_ENTRY_RE = re.compile(r"(?m)^(?:cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\s*[:\-]?\s*$", re.I)
 
-TRAP_RE = re.compile(r"\b(?:data\s+entry|entered\s+data|during\s+follow\s*-?up|outcome)\b", re.I)
+TRAP_RE = re.compile(
+    r"(?:data\s+entry"
+    r"|entered\s+data"
+    r"|used\s+only\s+for\s+follow[- ]?up"
+    r"|follow[- ]?up\s+confirmation"
+    r"|post[- ]?discharge"
+    r"|monitoring"
+    r"|screening"
+    r")",
+    re.I
+)
 
 # Helper -------------------------------------------------------------------
 def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, int, str]]:
