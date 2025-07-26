@@ -154,19 +154,22 @@ def find_entry_event_v3(text: str):
 
 
 def find_entry_event_v4(text: str, window: int = 6):
-    matches = find_entry_event_v2(text, window)
+    matches = find_entry_event_v2(text, window=window)
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    qual_idx = {i for i, t in enumerate(tokens) if FIRST_INITIAL_RE.fullmatch(t)}
-    return [
-        (w_s, w_e, snip)
-        for w_s, w_e, snip in matches
-        if any(q for q in qual_idx if w_s - window <= q <= w_e + window)
-    ]
+
+    out = []
+    for w_s, w_e, snip in matches:
+        char_start = token_spans[max(0, w_s - window)][0]
+        char_end = token_spans[min(len(token_spans) - 1, w_e + window)][1]
+        context = text[char_start:char_end]
+
+        if FIRST_INITIAL_RE.search(context):
+            out.append((w_s, w_e, snip))
+    return out
 
 def find_entry_event_v5(text: str):
     TEMPLATE_RE = re.compile(
-        r"entry\s+event\s+was\s+(?:the\s+)?first\s+[A-Za-z\s]+?\b(?:diagnosis|hospitali[sz]ation|admission|event)\b",
+        r"entry\s+event\s+was\s+(?:the\s+)?first\s+(?:[a-z]+\s+){0,4}?(diagnosis|hospitali[sz]ation|admission|event|infarction|visit)\b.*?[.?!]?",
         re.I,
     )
     return _collect([TEMPLATE_RE], text)
