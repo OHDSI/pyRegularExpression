@@ -44,7 +44,10 @@ INCLUSION_VERB_RE = re.compile(
 )
 
 
-FIRST_INITIAL_RE = re.compile(r"\b(?:first|initial)\s+(?:[A-Za-z]+)\b", re.I)
+FIRST_INITIAL_RE = re.compile(
+    r"\b(?:first|initial)\s+(?:hospitali[sz]ation|admission|diagnos(?:is|es)|visit|index\s+event)\b",
+    re.I
+)
 
 HEADING_ENTRY_RE = re.compile(r"(?m)^(?:cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\s*[:\-]?\s*$", re.I)
 
