@@ -105,19 +105,53 @@ def find_entry_event_v2(text: str, window: int = 6):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_entry_event_v3(text: str, block_chars: int = 400):
+def find_entry_event_v3(text: str):
     token_spans = _token_spans(text)
     blocks = []
-    for h in HEADING_ENTRY_RE.finditer(text):
-        start = h.end()
-        nxt_blank = text.find("\n\n", start)
-        end = nxt_blank if 0 <= nxt_blank - start <= block_chars else start + block_chars
+
+    # 1. Inline headings with content on the same line
+    INLINE_HEADING_RE = re.compile(
+        r"(?i)\b(cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\b[ \t]*[:\-\u2013][ \t]*(\S.+)"
+    )
+    for m in INLINE_HEADING_RE.finditer(text):
+    # Cover full line
+        line_start = text.rfind('\n', 0, m.start(2)) + 1
+        line_end = text.find('\n', m.start(2))
+        if line_end == -1:
+            line_end = len(text)
+        blocks.append((line_start, line_end))
+
+    # 2. Block headings with content below (allow 0 or 1 blank lines)
+    BLOCK_HEADING_RE = re.compile(
+##        r"(?im)^(cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\s*[:\-]?\s*$"
+        r"(?im)^(cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\s*[:\-\u2013]?\s*$"
+    )
+    for h in BLOCK_HEADING_RE.finditer(text):
+        heading_end = h.end()
+        after = text[heading_end:]
+        if after.startswith("\n\n\n"):
+            continue
+        match = re.match(r"([\s\n]*)(\S.*)", after, re.DOTALL)
+        if not match:
+            continue
+        gap, content = match.groups()
+        if gap.count("\n") > 1:
+            continue
+    
+        content_line = content.split("\n", 1)[0]
+        start = heading_end + len(gap)
+        end = start + len(content_line)
         blocks.append((start, end))
-    def _inside(p): return any(s <= p < e for s, e in blocks)
+
+    def _inside(p):
+        return any(start <= p < end for start, end in blocks)
+
     return [
-        (*_char_span_to_word_span((m.start(), m.end()), token_spans), m.group(0))
-        for m in ENTRY_EVENT_TERM_RE.finditer(text) if _inside(m.start())
+        (*_char_span_to_word_span((m.start(), m.end()), token_spans), m.group())
+        for m in ENTRY_EVENT_TERM_RE.finditer(text)
+        if _inside(m.start()) and not TRAP_RE.search(text[max(0, m.start() - 50):m.end() + 50])
     ]
+
 
 def find_entry_event_v4(text: str, window: int = 6):
     matches = find_entry_event_v2(text, window)
