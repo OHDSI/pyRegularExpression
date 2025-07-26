@@ -24,20 +24,44 @@ def _char_span_to_word_span(char_span: Tuple[int, int], token_spans: Sequence[Tu
 
 # Regex assets -------------------------------------------------------------
 ENTRY_EVENT_TERM_RE = re.compile(
-    r"\b(?:first|initial|index|qualifying|cohort\s+entry|entry\s+event|eligible\s+upon|included\s+upon|included\s+after|hospitali[sz]ation|hospitali[sz]ed|admission|diagnosis|encounter|visit|event)\b",
+    r"(?:\bfirst\b|\binitial\b|\bindex\b|\bqualifying\b|\bcohort\s+entry\b|\bentry\s+event\b|\beligible\s+upon\b|\bincluded\s+upon\b|\bincluded\s+after\b|\bhospitali[sz]ation\b|\bhospitali[sz]ed\b|\badmission\b|\bdiagnosis\b|\bencounter\b|\bvisit\b|\bmyocardial\s+infarctions?\b)",
     re.I,
 )
 
 INCLUSION_VERB_RE = re.compile(
-    r"\b(?:eligible\s+(?:upon|after|if)|included\s+(?:upon|after|if)|must\s+have|cohort\s+entry\s+defined\s+by|entered\s+the\s+cohort|qualifying\s+event)\b",
-    re.I,
+    r"\b("
+    r"eligible\s+(?:upon|after|if)|"
+    r"included\s+(?:upon|after|if|based\s+on)|"
+    r"selection\s+was\s+based\s+on|"
+    r"entry\s+based\s+on|"
+    r"qualified|"
+    r"must\s+have|"
+    r"enrolled\s+(?:upon|after|if)|"
+    r"cohort\s+entry\s+defined\s+by|"
+    r"entered\s+the\s+cohort|"
+    r"qualifying\s+event"
+    r")\b", re.I
 )
 
-FIRST_INITIAL_RE = re.compile(r"\b(?:first|initial)\s+(?:[A-Za-z]+)\b", re.I)
 
-HEADING_ENTRY_RE = re.compile(r"(?m)^(?:cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\s*[:\-]?\s*$", re.I)
+FIRST_INITIAL_RE = re.compile(
+    r"\b(?:first|initial)\s+(?:hospitali[sz]ation|admission|diagnos(?:is|es)|visit|index\s+event)\b",
+    re.I
+)
 
-TRAP_RE = re.compile(r"\b(?:data\s+entry|entered\s+data|during\s+follow\s*-?up|outcome)\b", re.I)
+HEADING_ENTRY_RE = re.compile(r"\b(cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\b\s*[:\-]?", re.I)
+
+TRAP_RE = re.compile(
+    r"(?:data\s+entry"
+    r"|entered\s+data"
+    r"|used\s+only\s+for\s+follow[- ]?up"
+    r"|follow[- ]?up\s+confirmation"
+    r"|post[- ]?discharge"
+    r"|monitoring"
+    r"|screening"
+    r")",
+    re.I
+)
 
 # Helper -------------------------------------------------------------------
 def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, int, str]]:
@@ -53,49 +77,99 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
 
 # Finder variants ----------------------------------------------------------
 def find_entry_event_v1(text: str):
-    return _collect([ENTRY_EVENT_TERM_RE], text)
+    token_spans = _token_spans(text)
+    out = []
+    for m in ENTRY_EVENT_TERM_RE.finditer(text):
+        context = text[max(0, m.start() - 50):m.end() + 50]
+        if TRAP_RE.search(context):
+            continue
+        w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        out.append((w_s, w_e, m.group(0)))
+    return out
 
 def find_entry_event_v2(text: str, window: int = 6):
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    inc_idx = {i for i, t in enumerate(tokens) if INCLUSION_VERB_RE.fullmatch(t)}
+    inc_matches = [
+        _char_span_to_word_span((m.start(), m.end()), token_spans)
+        for m in INCLUSION_VERB_RE.finditer(text)
+    ]
     out = []
     for m in ENTRY_EVENT_TERM_RE.finditer(text):
-        if TRAP_RE.search(text[max(0, m.start()-20):m.end()+20]):
+        context = text[max(0, m.start() - 50):m.end() + 50]
+        if TRAP_RE.search(context):
             continue
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-        if any(i for i in inc_idx if w_s - window <= i <= w_e + window):
+        if any(inc_w_s - window <= w_s <= inc_w_e + window or
+               inc_w_s - window <= w_e <= inc_w_e + window
+               for inc_w_s, inc_w_e in inc_matches):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_entry_event_v3(text: str, block_chars: int = 400):
+def find_entry_event_v3(text: str):
     token_spans = _token_spans(text)
     blocks = []
-    for h in HEADING_ENTRY_RE.finditer(text):
-        start = h.end()
-        nxt_blank = text.find("\n\n", start)
-        end = nxt_blank if 0 <= nxt_blank - start <= block_chars else start + block_chars
+
+    # 1. Inline headings with content on the same line
+    INLINE_HEADING_RE = re.compile(
+        r"(?i)\b(cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\b[ \t]*[:\-\u2013][ \t]*(\S.+)"
+    )
+    for m in INLINE_HEADING_RE.finditer(text):
+    # Cover full line
+        line_start = text.rfind('\n', 0, m.start(2)) + 1
+        line_end = text.find('\n', m.start(2))
+        if line_end == -1:
+            line_end = len(text)
+        blocks.append((line_start, line_end))
+
+    # 2. Block headings with content below (allow 0 or 1 blank lines)
+    BLOCK_HEADING_RE = re.compile(
+##        r"(?im)^(cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\s*[:\-]?\s*$"
+        r"(?im)^(cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\s*[:\-\u2013]?\s*$"
+    )
+    for h in BLOCK_HEADING_RE.finditer(text):
+        heading_end = h.end()
+        after = text[heading_end:]
+        if after.startswith("\n\n\n"):
+            continue
+        match = re.match(r"([\s\n]*)(\S.*)", after, re.DOTALL)
+        if not match:
+            continue
+        gap, content = match.groups()
+        if gap.count("\n") > 1:
+            continue
+    
+        content_line = content.split("\n", 1)[0]
+        start = heading_end + len(gap)
+        end = start + len(content_line)
         blocks.append((start, end))
-    def _inside(p): return any(s <= p < e for s, e in blocks)
+
+    def _inside(p):
+        return any(start <= p < end for start, end in blocks)
+
     return [
-        (*_char_span_to_word_span((m.start(), m.end()), token_spans), m.group(0))
-        for m in ENTRY_EVENT_TERM_RE.finditer(text) if _inside(m.start())
+        (*_char_span_to_word_span((m.start(), m.end()), token_spans), m.group())
+        for m in ENTRY_EVENT_TERM_RE.finditer(text)
+        if _inside(m.start()) and not TRAP_RE.search(text[max(0, m.start() - 50):m.end() + 50])
     ]
 
+
 def find_entry_event_v4(text: str, window: int = 6):
-    matches = find_entry_event_v2(text, window)
+    matches = find_entry_event_v2(text, window=window)
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    qual_idx = {i for i, t in enumerate(tokens) if FIRST_INITIAL_RE.fullmatch(t)}
-    return [
-        (w_s, w_e, snip)
-        for w_s, w_e, snip in matches
-        if any(q for q in qual_idx if w_s - window <= q <= w_e + window)
-    ]
+
+    out = []
+    for w_s, w_e, snip in matches:
+        char_start = token_spans[max(0, w_s - window)][0]
+        char_end = token_spans[min(len(token_spans) - 1, w_e + window)][1]
+        context = text[char_start:char_end]
+
+        if FIRST_INITIAL_RE.search(context):
+            out.append((w_s, w_e, snip))
+    return out
 
 def find_entry_event_v5(text: str):
     TEMPLATE_RE = re.compile(
-        r"entry\s+event\s+was\s+(?:the\s+)?first\s+[A-Za-z\s]+?\b(?:diagnosis|hospitali[sz]ation|admission|event)\b",
+        r"entry\s+event\s+was\s+(?:the\s+)?first\s+(?:[a-z]+\s+){0,4}?(diagnosis|hospitali[sz]ation|admission|event|infarction|visit)\b.*?[.?!]?",
         re.I,
     )
     return _collect([TEMPLATE_RE], text)
