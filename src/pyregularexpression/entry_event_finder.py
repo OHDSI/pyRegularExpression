@@ -29,9 +29,20 @@ ENTRY_EVENT_TERM_RE = re.compile(
 )
 
 INCLUSION_VERB_RE = re.compile(
-    r"\b(?:eligible\s+(?:upon|after|if)|included\s+(?:upon|after|if)|must\s+have|cohort\s+entry\s+defined\s+by|entered\s+the\s+cohort|qualifying\s+event)\b",
-    re.I,
+    r"\b("
+    r"eligible\s+(?:upon|after|if)|"
+    r"included\s+(?:upon|after|if|based\s+on)|"
+    r"selection\s+was\s+based\s+on|"
+    r"entry\s+based\s+on|"
+    r"qualified|"
+    r"must\s+have|"
+    r"enrolled\s+(?:upon|after|if)|"
+    r"cohort\s+entry\s+defined\s+by|"
+    r"entered\s+the\s+cohort|"
+    r"qualifying\s+event"
+    r")\b", re.I
 )
+
 
 FIRST_INITIAL_RE = re.compile(r"\b(?:first|initial)\s+(?:[A-Za-z]+)\b", re.I)
 
