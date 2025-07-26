@@ -24,7 +24,7 @@ def _char_span_to_word_span(char_span: Tuple[int, int], token_spans: Sequence[Tu
 
 # Regex assets -------------------------------------------------------------
 ENTRY_EVENT_TERM_RE = re.compile(
-    r"\b(?:first|initial|index|qualifying|cohort\s+entry|entry\s+event|eligible\s+upon|included\s+upon|included\s+after|hospitali[sz]ation|hospitali[sz]ed|admission|diagnosis|encounter|visit|event)\b",
+    r"(?:\bfirst\b|\binitial\b|\bindex\b|\bqualifying\b|\bcohort\s+entry\b|\bentry\s+event\b|\beligible\s+upon\b|\bincluded\s+upon\b|\bincluded\s+after\b|\bhospitali[sz]ation\b|\bhospitali[sz]ed\b|\badmission\b|\bdiagnosis\b|\bencounter\b|\bvisit\b|\bmyocardial\s+infarctions?\b)",
     re.I,
 )
 
