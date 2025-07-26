@@ -49,7 +49,7 @@ FIRST_INITIAL_RE = re.compile(
     re.I
 )
 
-HEADING_ENTRY_RE = re.compile(r"(?m)^(?:cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\s*[:\-]?\s*$", re.I)
+HEADING_ENTRY_RE = re.compile(r"\b(cohort\s+entry|entry\s+event|qualifying\s+event|index\s+event)\b\s*[:\-]?", re.I)
 
 TRAP_RE = re.compile(
     r"(?:data\s+entry"
