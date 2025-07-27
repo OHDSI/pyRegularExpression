@@ -15,6 +15,7 @@ from typing import List, Tuple, Sequence, Dict, Callable
 # ─────────────────────────────
 # 0.  Shared utilities
 # ─────────────────────────────
+
 TOKEN_RE = re.compile(r"\S+")
 
 def _token_spans(text: str) -> List[Tuple[int, int]]:
@@ -141,3 +142,4 @@ __all__ = [
 # handy aliases
 find_exclusion_rule_high_recall = find_exclusion_rule_v1
 find_exclusion_rule_high_precision = find_exclusion_rule_v5
+
