@@ -1,7 +1,9 @@
 # tests/test_exclusion_rule_finder.py
-
 """
 Complete test suite for exclusion_rule_finder.py.
+
+This suite provides robust, comprehensive checks for v1 and v2,
+with lighter validation for v3, v4, and v5 variants.
 """
 
 import pytest
@@ -78,7 +80,6 @@ def test_find_exclusion_rule_v2_robust(text, should_match, test_id):
         ("PRIMARY EXCLUSION CRITERIA:\nPatients excluded for poor adherence.", False, "v3_neg_unrecognized_heading"),
     ]
 )
-
 def test_find_exclusion_rule_v3_light(text, should_match, test_id):
     matches = find_exclusion_rule_v3(text)
     assert bool(matches) == should_match, f"v3 failed for ID: {test_id}"
@@ -97,7 +98,6 @@ def test_find_exclusion_rule_v3_light(text, should_match, test_id):
         ("Not eligible due to uncontrolled hypertension.", False, "v4_neg_no_gate_and_conditional"),
     ]
 )
-
 def test_find_exclusion_rule_v4_light(text, should_match, test_id):
     matches = find_exclusion_rule_v4(text)
     assert bool(matches) == should_match, f"v4 failed for ID: {test_id}"
@@ -117,7 +117,6 @@ def test_find_exclusion_rule_v4_light(text, should_match, test_id):
         ("Subjects must not have HIV to be eligible.", False, "v5_neg_not_a_template"),
     ]
 )
-
 def test_find_exclusion_rule_v5_light(text, should_match, test_id):
     matches = find_exclusion_rule_v5(text)
     assert bool(matches) == should_match, f"v5 failed for ID: {test_id}"
