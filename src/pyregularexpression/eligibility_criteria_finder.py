@@ -7,89 +7,178 @@ Five variants (v1–v5):
     • v5 – tight template: paired statement listing age/diagnosis eligibility and exclusion of specific conditions (e.g., “Adults 18–65 with diabetes were eligible; prior insulin use was an exclusion”).
 Each finder returns tuples: (start_word_idx, end_word_idx, snippet).
 """
+
 from __future__ import annotations
 import re
 from typing import List, Tuple, Sequence, Dict, Callable
 
-TOKEN_RE = re.compile(r"\\S+")
+# ─────────────────────────────
+# 0. Shared utilities
+# ─────────────────────────────
+TOKEN_RE = re.compile(r"\S+")
 
 def _token_spans(text: str) -> List[Tuple[int, int]]:
     return [(m.start(), m.end()) for m in TOKEN_RE.finditer(text)]
 
-def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
-    s, e = span
-    w_s = next(i for i, (a, b) in enumerate(spans) if a <= s < b)
-    w_e = next(i for i, (a, b) in reversed(list(enumerate(spans))) if a < e <= b)
-    return w_s, w_e
+def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[int, int]]) -> Tuple[int, int]:
+    s_char, e_char = span
+    w_start = next(i for i, (s, e) in enumerate(token_spans) if s <= s_char < e)
+    w_end = next(i for i, (s, e) in reversed(list(enumerate(token_spans))) if s < e_char <= e)
+    return w_start, w_end
 
-INCL_CUE_RE = re.compile(r"\\b(?:eligible\\s+(?:patients|participants|subjects|individuals)\\s+were|inclusion\\s+criteria\\s+(?:included|were|consisted\\s+of)|eligible\\s+if|criteria\\s+for\\s+enrollment|patients?\\s+were\\s+eligible|we\\s+included|must\\s+meet\\s+all\\s+of\\s+the\\s+following|required\\s+to\\s+have)\\b", re.I)
-EXCL_CUE_RE = re.compile(r"\\b(?:we\\s+excluded|exclusion\\s+criteria|excluded\\s+patients?|patients?\\s+were\\s+excluded|exclusion\\s+included|were\\s+not\\s+eligible|must\\s+not\\s+have)\\b", re.I)
-ELIG_CUE_RE = re.compile(r"\\b(?:inclusion\\s+criteria|exclusion\\s+criteria|eligible|enrollment\\s+criteria)\\b", re.I)
-HEADING_ELIG_RE = re.compile(r"(?m)^(?:eligibility|inclusion\\s+and\\s+exclusion\\s+criteria|study\\s+population|participants?)\\s*[:\\-]?\\s*$", re.I)
-TRAP_RE = re.compile(r"\\b(?:diagnostic\\s+criteria|classification\\s+criteria|performance\\s+criteria)\\b", re.I)
-TIGHT_TEMPLATE_RE = re.compile(
-    r"\\b(?:adults?|children)\\s+\\d{1,3}(?:–|-|\\s+to\\s+)\\d{1,3}\\s+[^\\.\\n]{0,80}(?:eligible|inclusion\\s+criteria)[^\\.\\n]{0,120}(?:exclusion\\s+criteria|were\\s+excluded)\\b",
+# ─────────────────────────────
+# 1. Regex assets
+# ─────────────────────────────
+INCL_CUE_RE = re.compile(
+    r'\b(eligible\s+(patients|participants|individuals)|inclusion\s+criteria(?:\s+included)?|patients\s+were\s+eligible)\b',
+    re.I
+)
+
+EXCL_CUE_RE = re.compile(
+    r"\b(?:were\s+excluded|we\s+excluded|exclusion\s+criteria(?:\s+included)?|not\s+eligible\s+if|excluded\s+if|were\s+not\s+eligible(?:\s+if)?)\b",
     re.I,
 )
 
-def _collect(patterns: Sequence[re.Pattern[str]], text: str):
-    spans = _token_spans(text)
-    out = []
+QUALIFIER_RE = re.compile(
+    r'\b(aged\s+\d{1,3}(?:\s*(?:–|-|to|\u2013|\u2014|\u2212)\s*)\d{1,3}|diagnosed\s+\w+|with\s+(?:a\s+)?\w+|history\s+of\s+\w+|had\s+\w+|those\s+with\s+\w+|patients\s+with\s+\w+)\b',
+    re.I,
+)
+
+ELIG_CUE_RE = re.compile(
+    r"\b(?:inclusion\s+criteria|exclusion\s+criteria|eligibility\s+criteria|enrollment\s+criteria|eligible)\b",
+    re.I,
+)
+
+HEADING_ELIG_RE = re.compile(
+    r"(?m)^\s*(?:eligibility\s+criteria|inclusion\s+and\s+exclusion\s+criteria|study\s+population|participants?)\s*[:\-]?\s*$",
+    re.I
+)
+
+TRAP_RE = re.compile(
+    r"\b(?:diagnostic\s+criteria|classification\s+criteria|performance\s+criteria)\b",
+    re.I,
+)
+
+TIGHT_TEMPLATE_RE = re.compile(
+    r"\b(?:(?:adults?|children|patients|participants)\s+\d{1,3}(?:\s*(?:–|-|to)\s*)\d{1,3}"
+    r"|eligible\s+(?:patients|participants|individuals)[^\.\n]{0,100}?(?:aged\s+\d{1,3}(?:\s*(?:–|-|to)\s*)\d{1,3}))"
+    r"(?:[^\.\n]{0,100}?(?:inclusion\s+criteria|were\s+eligible))?"
+    r"(?:[^\.\n]{0,100}?(?:exclusion\s+criteria|were\s+excluded|not\s+eligible|excluded\s+if))?",
+    re.I
+)
+
+# ─────────────────────────────
+# 2. Helper
+# ─────────────────────────────
+def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, int, str]]:
+    token_spans = _token_spans(text)
+    out: List[Tuple[int, int, str]] = []
     for patt in patterns:
         for m in patt.finditer(text):
             if TRAP_RE.search(text[max(0, m.start()-25):m.end()+25]):
                 continue
-            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_eligibility_criteria_v1(text: str):
-    return _collect([INCL_CUE_RE, EXCL_CUE_RE, ELIG_CUE_RE], text)
+# ─────────────────────────────
+# 3. Finder variants
+# ─────────────────────────────
+def find_eligibility_criteria_v1(text: str) -> List[Tuple[int, int, str]]:
+    """Tier 1 – any inclusion/exclusion cue or tight template."""
+    return _collect([INCL_CUE_RE, EXCL_CUE_RE, ELIG_CUE_RE, TIGHT_TEMPLATE_RE], text)
 
-def find_eligibility_criteria_v2(text: str, window: int = 4):
-    qualifier_re = re.compile(r"\\b(age\\s+\\d{1,3}|\\d{1,3}\\s*(?:years?|yrs?)|male|female|men|women|diagnosed|history\\s+of)\\b", re.I)
-    spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in spans]
-    qual_idx = {i for i, t in enumerate(tokens) if qualifier_re.fullmatch(t)}
-    cue_idx = {i for i, t in enumerate(tokens) if INCL_CUE_RE.fullmatch(t) or EXCL_CUE_RE.fullmatch(t)}
+def find_eligibility_criteria_v2(text: str, window: int = 10) -> List[Tuple[int, int, str]]:
+    token_spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in token_spans]
     out = []
-    for i in cue_idx:
-        if any(q for q in qual_idx if abs(q - i) <= window):
-            w_s, w_e = _char_to_word(spans[i], spans)
-            out.append((w_s, w_e, tokens[i]))
+    cue_spans = _collect([INCL_CUE_RE, EXCL_CUE_RE], text)
+    for cue_start, cue_end, _ in cue_spans:
+        for j in range(max(0, cue_start - window), min(len(tokens), cue_end + window)):
+            for k in range(1, 5): 
+                if j + k <= len(tokens):
+                    phrase = " ".join(tokens[j:j + k])
+                    if QUALIFIER_RE.search(phrase):
+                        w_s = min(cue_start, j)
+                        w_e = max(cue_end, j + k)
+                        snippet = text[token_spans[w_s][0]:token_spans[w_e - 1][1]]
+                        out.append((w_s, w_e, snippet))
+                        break  
+            else:
+                continue
+            break
     return out
 
-def find_eligibility_criteria_v3(text: str, block_chars: int = 500):
-    spans = _token_spans(text)
-    blocks = []
+def find_eligibility_criteria_v3(text: str, block_chars: int = 500) -> List[Tuple[int, int, str]]:
+    """Tier 3 – only inside ‘Eligibility’ heading blocks."""    
+    token_spans = _token_spans(text)
+    blocks: List[Tuple[int, int]] = []
     for h in HEADING_ELIG_RE.finditer(text):
-        s = h.end(); e = min(len(text), s + block_chars)
+        s = h.end()
+        e = min(len(text), s + block_chars)
         blocks.append((s, e))
-    inside = lambda p: any(s <= p < e for s, e in blocks)
-    out = []
-    for m in (INCL_CUE_RE, EXCL_CUE_RE):
-        for x in m.finditer(text):
-            if inside(x.start()):
-                w_s, w_e = _char_to_word((x.start(), x.end()), spans)
-                out.append((w_s, w_e, x.group(0)))
+    def _inside(pos: int): return any(s <= pos < e for s, e in blocks)
+    out: List[Tuple[int, int, str]] = []
+    for patt in [INCL_CUE_RE, EXCL_CUE_RE]:
+        for m in patt.finditer(text):
+            if _inside(m.start()):
+                w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+                out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_eligibility_criteria_v4(text: str, window: int = 6):
-    spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in spans]
-    incl_idx = {i for i, t in enumerate(tokens) if INCL_CUE_RE.fullmatch(t)}
-    excl_idx = {i for i, t in enumerate(tokens) if EXCL_CUE_RE.fullmatch(t)}
-    out = []
-    for i in incl_idx:
-        if any(e for e in excl_idx if abs(e - i) <= window):
-            w_s, w_e = _char_to_word(spans[i], spans)
-            out.append((w_s, w_e, tokens[i]))
+def find_eligibility_criteria_v4(text: str) -> List[Tuple[int, int, str]]:
+    """
+    v4 – fires if the text contains a valid inclusion cue *before* a valid exclusion cue.
+    Returns a single span from the start of the first inclusion match to the end
+    of the first exclusion match.
+    """
+    token_spans = _token_spans(text)
+
+    # 1) collect all inclusion matches, filtering out any inside a negation trap
+    raw_inc = list(INCL_CUE_RE.finditer(text))
+    inc_matches = []
+    for m in raw_inc:
+        window_start = max(0, m.start() - 30)
+        window_end   = m.end() + 30
+        if TRAP_RE.search(text[window_start:window_end]):
+            continue
+        inc_matches.append(m)
+
+    # 2) if no valid inclusion, bail out
+    if not inc_matches:
+        return []
+
+    # 3) pick the first valid inclusion
+    inc_m = inc_matches[0]
+
+    # 4) find the first exclusion cue
+    ex_m = EXCL_CUE_RE.search(text)
+    # require exclusion exists and inclusion precedes it
+    if not ex_m or inc_m.start() > ex_m.start():
+        return []
+
+    # 5) build span from inclusion start to exclusion end
+    start_char = inc_m.start()
+    end_char   = ex_m.end()
+
+    w_s, w_e = _char_span_to_word_span((start_char, end_char), token_spans)
+    snippet  = text[start_char:end_char]
+    return [(w_s, w_e, snippet)]
+
+
+def find_eligibility_criteria_v5(text: str) -> List[Tuple[int, int, str]]:
+    """Tier 5 – very tight template-based match for age range + eligibility + exclusion."""
+    token_spans = _token_spans(text)
+    out: List[Tuple[int, int, str]] = []
+    for m in TIGHT_TEMPLATE_RE.finditer(text):
+        w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+        out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_eligibility_criteria_v5(text: str):
-    return _collect([TIGHT_TEMPLATE_RE], text)
-
-ELIGIBILITY_CRITERIA_FINDERS: Dict[str, Callable[[str], List[Tuple[int,int,str]]]] = {
+# ─────────────────────────────
+# 4. Public mapping & exports
+# ─────────────────────────────
+ELIGIBILITY_CRITERIA_FINDERS: Dict[str, Callable[[str], List[Tuple[int, int, str]]]] = {
     "v1": find_eligibility_criteria_v1,
     "v2": find_eligibility_criteria_v2,
     "v3": find_eligibility_criteria_v3,
@@ -98,9 +187,14 @@ ELIGIBILITY_CRITERIA_FINDERS: Dict[str, Callable[[str], List[Tuple[int,int,str]]
 }
 
 __all__ = [
-    "find_eligibility_criteria_v1", "find_eligibility_criteria_v2", "find_eligibility_criteria_v3",
-    "find_eligibility_criteria_v4", "find_eligibility_criteria_v5", "ELIGIBILITY_CRITERIA_FINDERS",
+    "find_eligibility_criteria_v1",
+    "find_eligibility_criteria_v2",
+    "find_eligibility_criteria_v3",
+    "find_eligibility_criteria_v4",
+    "find_eligibility_criteria_v5",
+    "ELIGIBILITY_CRITERIA_FINDERS",
 ]
 
+# handy aliases
 find_eligibility_criteria_high_recall = find_eligibility_criteria_v1
 find_eligibility_criteria_high_precision = find_eligibility_criteria_v5

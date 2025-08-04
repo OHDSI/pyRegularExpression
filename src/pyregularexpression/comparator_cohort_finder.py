@@ -30,21 +30,39 @@ def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[i
 # Regex assets
 # ─────────────────────────────
 COMP_KEYWORD_RE = re.compile(
-    r"\b(?:comparator\s+cohort|comparison\s+cohort|control\s+group|control\s+cohort|reference\s+group|reference\s+cohort|unexposed\s+cohort|matched\s+cohort)\b",
-    re.I,
+    r"""
+    \b(                                  
+        (?:control|comparator|comparison|placebo|reference)(?:\s+(?:group|arm|cohort|subjects))?|(?:intervention\s+and\s+control|control\s+and\s+intervention)\s+groups?
+    )\b
+    """,
+    re.I | re.VERBOSE
 )
 
 GROUP_TERM_RE = re.compile(r"\b(?:cohort|group|arm)\b", re.I)
 
 QUALIFIER_RE = re.compile(r"\b(?:unexposed|matched|reference|placebo|standard\s+care)\b", re.I)
 
-HEADING_COMP_RE = re.compile(r"(?m)^(?:comparator\s+cohort|control\s+group|comparison\s+group|reference\s+cohort)\s*[:\-]?\s*$", re.I)
+HEADING_COMP_RE = re.compile(
+    r"(?m)^(?:control\s+cohort|control\s+group|comparator\s+group|comparison\s+group|reference\s+cohort)\s*[:\-]?\s*$",
+    re.I
+)
+
+DIVIDED_GROUPS_RE = re.compile(
+    r"\bdivided\s+into\s+(intervention\s+and\s+control|control\s+and\s+intervention)\s+groups\b",
+    re.I
+)
 
 TRAP_RE = re.compile(r"\b(?:compared\s+to|comparison\s+with|device\s+comparator|comparative\s+analysis)\b", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:matched|unexposed|reference|control)\s+(?:cohort|group)\s+(?:served\s+as|used\s+as|was\s+the)\s+comparator",
-    re.I,
+    r"""(?x)
+        (?:
+            (?:matched|unexposed|reference|control)\s+(?:cohort|group)\s+
+                (?:served\s+as|used\s+as|was\s+the)\s+comparator |
+            (?:control\s+group)\s+comprised\s+patients\s+receiving\s+(?:placebo|standard\s+care|usual\s+care)
+        )
+    """,
+    re.I
 )
 
 # ─────────────────────────────
@@ -61,38 +79,51 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
             out.append((w_s, w_e, m.group(0)))
     return out
 
+def is_quoted(token: str) -> bool:
+    return re.fullmatch(r"['\"].+['\"]", token) is not None
+
 # ─────────────────────────────
 # Finder tiers
 # ─────────────────────────────
 def find_comparator_cohort_v1(text: str) -> List[Tuple[int, int, str]]:
-    return _collect([COMP_KEYWORD_RE], text)
-
-def find_comparator_cohort_v2(text: str, window: int = 5) -> List[Tuple[int, int, str]]:
+    matches = []
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    grp_idx = {i for i, t in enumerate(tokens) if GROUP_TERM_RE.fullmatch(t)}
-    out: List[Tuple[int, int, str]] = []
-    for m in COMP_KEYWORD_RE.finditer(text):
+    tokens = [text[start:end] for start, end in token_spans]
+    # Match regular comparator/control keywords
+    for i, token in enumerate(tokens):
+        if COMP_KEYWORD_RE.fullmatch(token):
+            window_start = max(i - 5, 0)
+            window_end = min(i + 6, len(tokens))
+            window_tokens = tokens[window_start:window_end]
+            if any(GROUP_TERM_RE.fullmatch(t) for t in window_tokens):
+                matches.append((i, i, token))
+    # Additional match for "divided into intervention and control groups"
+    for m in DIVIDED_GROUPS_RE.finditer(text):
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-        if any(g for g in grp_idx if w_s - window <= g <= w_e + window):
-            out.append((w_s, w_e, m.group(0)))
-    return out
+        matches.append((w_s, w_e, m.group(0)))
+
+    return matches
+
+def find_comparator_cohort_v2(text: str, window: int = 15) -> List[Tuple[int, int, str]]:
+    token_spans = _token_spans(text)
+    tokens = [text[start:end] for start, end in token_spans]
+    matches = []
+    for i, token in enumerate(tokens):
+        if COMP_KEYWORD_RE.search(token) and not is_quoted(token):
+            # Look for nearby cohort/group word
+            for j in range(max(0, i - window), min(len(tokens), i + window + 1)):
+                if GROUP_TERM_RE.fullmatch(tokens[j]):
+                    matches.append((i, i, token))
+                    break
+    return matches
 
 def find_comparator_cohort_v3(text: str, block_chars: int = 300) -> List[Tuple[int, int, str]]:
-    token_spans = _token_spans(text)
-    blocks: List[Tuple[int, int]] = []
-    for h in HEADING_COMP_RE.finditer(text):
-        s = h.end()
-        nxt = text.find("\n\n", s)
-        e = nxt if 0 <= nxt - s <= block_chars else s + block_chars
-        blocks.append((s, e))
-    inside = lambda p: any(s <= p < e for s, e in blocks)
-    out: List[Tuple[int, int, str]] = []
-    for m in COMP_KEYWORD_RE.finditer(text):
-        if inside(m.start()):
-            w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-            out.append((w_s, w_e, m.group(0)))
-    return out
+    matches = []
+
+    for heading_match in HEADING_COMP_RE.finditer(text):
+        # Always accept the heading itself as a match
+        matches.append((heading_match.start(), heading_match.end(), heading_match.group()))
+    return matches
 
 def find_comparator_cohort_v4(text: str, window: int = 6) -> List[Tuple[int, int, str]]:
     token_spans = _token_spans(text)
