@@ -34,9 +34,22 @@ ATTRITION_CUE_RE = re.compile(
     re.I,
 )
 
-STUDY_CONTEXT_RE = re.compile(r"\b(?:during\s+(?:study|follow[- ]?up)|after\s+enrol(?:l|l)ment|post[- ]?baseline)\b", re.I)
+STUDY_CONTEXT_RE = re.compile(
+    r"""
+    \b(
+        during\s+(the\s+)?(study|follow[-\s]?up|trial)|(study|trial|follow[-\s]?up)\s+period|in\s+(the\s+)?(study|trial|follow[-\s]?up)
+    )\b
+    """,
+    flags=re.IGNORECASE | re.VERBOSE,
+)
 
-NUMERIC_EVIDENCE_RE = re.compile(r"\b(?:\d+\s*(?:participants?|patients?|subjects?)|\d+\s*%|n\s*=\s*\d+)\b", re.I)
+NUMERIC_EVIDENCE_RE = re.compile(
+    r"""
+    (?:(?:\d+|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s+(participants?|patients?|subjects?)|\d+\s*%(\s+of\s+(participants?|patients?|subjects?))?|n\s*=\s*\d+
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE
+)
 
 HEADING_ATTRITION_RE = re.compile(r"(?m)^(?:attrition|loss\s+to\s+follow[- ]?up|participant\s+flow)\s*[:\-]?\s*$", re.I)
 
@@ -46,7 +59,8 @@ TRAP_RE = re.compile(
 )
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:\d+\s*(?:participants?|patients?|subjects?)\s+(?:were\s+)?(?:lost\s+to\s+follow[- ]?up|withdrew\s+consent|dropped\s+out)|lost\s+to\s+follow[- ]?up\s+in\s+\d+\s*%\s+of\s+participants)",
+    r"(?:\d+\s*(?:participants?|patients?|subjects?)\s+(?:were\s+)?(?:lost\s+to\s+follow[- ]?up|withdrew\s+consent|dropped\s+out)|"
+    r"withdrew\s+consent\s+during\s+(?:follow[- ]?up|the\s+study))",
     re.I,
 )
 
@@ -72,17 +86,18 @@ def find_attrition_criteria_v1(text: str) -> List[Tuple[int, int, str]]:
     return _collect([ATTRITION_CUE_RE], text)
 
 def find_attrition_criteria_v2(text: str, window: int = 5) -> List[Tuple[int, int, str]]:
-    """Tier 2 – attrition cue + study‑context token within ±window tokens."""    
+    """Tier 2 – attrition cue + study‑context token within ±window tokens."""
     token_spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in token_spans]
-    ctx_idx = {i for i, t in enumerate(tokens) if STUDY_CONTEXT_RE.fullmatch(t)}
     out: List[Tuple[int, int, str]] = []
-    for m in ATTRITION_CUE_RE.finditer(text):
-        if TRAP_RE.search(text[max(0, m.start()-30):m.end()+30]):
-            continue
+    cue_matches = [(m.start(), m.end(), m.group(0)) for m in ATTRITION_CUE_RE.finditer(text) if not TRAP_RE.search(text[max(0, m.start()-30):m.end()+30])]
+    ctx_word_indices = set()
+    for m in STUDY_CONTEXT_RE.finditer(text):
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-        if any(c for c in ctx_idx if w_s - window <= c <= w_e + window):
-            out.append((w_s, w_e, m.group(0)))
+        ctx_word_indices.update(range(w_s, w_e + 1))
+    for s_char, e_char, snippet in cue_matches:
+        w_s, w_e = _char_span_to_word_span((s_char, e_char), token_spans)
+        if any(c for c in ctx_word_indices if w_s - window <= c <= w_e + window):
+            out.append((w_s, w_e, snippet))
     return out
 
 def find_attrition_criteria_v3(text: str, block_chars: int = 400) -> List[Tuple[int, int, str]]:
@@ -106,7 +121,12 @@ def find_attrition_criteria_v4(text: str, window: int = 6) -> List[Tuple[int, in
     """Tier 4 – v2 + numeric evidence of dropout."""    
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    num_idx = {i for i, t in enumerate(tokens) if NUMERIC_EVIDENCE_RE.fullmatch(t)}
+    num_idx = set()
+    for i in range(len(tokens)):
+        for j in range(i+1, min(i+4, len(tokens))+1):
+            span_text = " ".join(tokens[i:j])
+            if NUMERIC_EVIDENCE_RE.fullmatch(span_text):
+                num_idx.update(range(i, j))
     matches = find_attrition_criteria_v2(text, window=window)
     out: List[Tuple[int, int, str]] = []
     for w_s, w_e, snip in matches:
