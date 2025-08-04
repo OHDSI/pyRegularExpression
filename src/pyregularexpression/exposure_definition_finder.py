@@ -34,13 +34,20 @@ def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[i
 # ─────────────────────────────
 EXPOSURE_DEF_CUE_RE = re.compile(r"\b(?:exposure|exposed)\b", re.I)
 
-DEFINE_VERB_RE = re.compile(r"\b(?:defined|considered|operationalis(?:ed|ed)|assigned|classified|characteris(?:ed|ed))\b", re.I)
+DEFINE_VERB_RE = re.compile(
+    r"\b(define|defined|consider|considered|operationalize|operationalized|required|required|present)\b", re.I
+)
 
 CRITERION_TOKEN_RE = re.compile(r"\b(?:>=|<=|>|<|at\s+least|more\s+than|\d+\s*(?:prescriptions?|doses?|fills?|days?|weeks?|months)|within\s+\d+)\b", re.I)
 
 HEADING_EXPOSURE_RE = re.compile(r"(?m)^(?:exposure\s+(?:definition|assessment|classification))\s*[:\-]?\s*$", re.I)
 
-TRAP_RE = re.compile(r"\b(?:radiation\s+exposure|occupational\s+exposure|environmental\s+exposure|randomi(?:s|z)ed)\b", re.I)
+TRAP_RE = re.compile(
+    r"\b(?:occupational\s+exposure|environmental\s+exposure|randomi(?:s|z)ed|exposure\s+group|exposure\s+pathway)\b",
+    re.I,
+)
+
+NEGATION_RE = re.compile(r"\b(not|no|never|did\s+not|was\s+not|were\s+not|cannot|can't|won't)\b", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
     r"(?:exposure\s+was\s+defined\s+as|exposure\s*=)\s+[^\.\n]{0,80}",
@@ -64,26 +71,36 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
 # ─────────────────────────────
 # 3.  Finder variants
 # ─────────────────────────────
-def find_exposure_definition_v1(text: str) -> List[Tuple[int, int, str]]:
-    """Tier 1 – any exposure cue."""    
-    return _collect([EXPOSURE_DEF_CUE_RE], text)
-
-def find_exposure_definition_v2(text: str, window: int = 5) -> List[Tuple[int, int, str]]:
-    """Tier 2 – cue + defining verb within ±window tokens."""    
+def find_exposure_definition_v1(text):
+    if TRAP_RE.search(text):
+        return []
+    matches = []
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    verb_idx = {i for i, t in enumerate(tokens) if DEFINE_VERB_RE.fullmatch(t)}
+    for i, t in enumerate(tokens):
+        if EXPOSURE_DEF_CUE_RE.fullmatch(t):
+            matches.append((i, i, t))
+    return matches
+
+def find_exposure_definition_v2(text: str, window: int = 8) -> List[Tuple[int, int, str]]:
+    """Tier 2 – exposure cue + defining verb within ±window tokens, excluding negated verbs."""
+    token_spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in token_spans]
     out: List[Tuple[int, int, str]] = []
     for m in EXPOSURE_DEF_CUE_RE.finditer(text):
-        if TRAP_RE.search(text[max(0, m.start()-30):m.end()+30]):
-            continue
-        w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-        if any(v for v in verb_idx if w_s - window <= v <= w_e + window):
+        cue_start, cue_end = m.start(), m.end()
+        w_s, w_e = _char_span_to_word_span((cue_start, cue_end), token_spans)
+        w_lo = max(0, w_s - window)
+        w_hi = min(len(tokens), w_e + window + 1)
+        window_text = text[token_spans[w_lo][0]:token_spans[w_hi - 1][1]]
+        if DEFINE_VERB_RE.search(window_text):
+            if NEGATION_RE.search(window_text):
+                continue
             out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_exposure_definition_v3(text: str, block_chars: int = 400) -> List[Tuple[int, int, str]]:
-    """Tier 3 – inside Exposure definition heading blocks."""    
+    """Tier 3 – allow exposure threshold expressions inside Exposure Definition-style section blocks."""
     token_spans = _token_spans(text)
     blocks: List[Tuple[int, int]] = []
     for h in HEADING_EXPOSURE_RE.finditer(text):
@@ -91,24 +108,34 @@ def find_exposure_definition_v3(text: str, block_chars: int = 400) -> List[Tuple
         nxt_blank = text.find("\n\n", start)
         end = nxt_blank if 0 <= nxt_blank - start <= block_chars else start + block_chars
         blocks.append((start, end))
-    def _inside(p): return any(s <= p < e for s, e in blocks)
+    def _inside(p):
+        return any(s <= p < e for s, e in blocks)
     out: List[Tuple[int, int, str]] = []
     for m in EXPOSURE_DEF_CUE_RE.finditer(text):
+        if _inside(m.start()):
+            w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+            out.append((w_s, w_e, m.group(0)))
+    for m in CRITERION_TOKEN_RE.finditer(text):
         if _inside(m.start()):
             w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
             out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_exposure_definition_v4(text: str, window: int = 6) -> List[Tuple[int, int, str]]:
-    """Tier 4 – v2 + explicit criterion token."""    
+    """Tier 4 – exposure cue + defining verb + numeric/time criterion all within window."""
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    crit_idx = {i for i, t in enumerate(tokens) if CRITERION_TOKEN_RE.fullmatch(t)}
-    matches = find_exposure_definition_v2(text, window=window)
     out: List[Tuple[int, int, str]] = []
-    for w_s, w_e, snip in matches:
-        if any(c for c in crit_idx if w_s - window <= c <= w_e + window):
-            out.append((w_s, w_e, snip))
+
+    for m in EXPOSURE_DEF_CUE_RE.finditer(text):
+        cue_start, cue_end = m.start(), m.end()
+        w_s, w_e = _char_span_to_word_span((cue_start, cue_end), token_spans)
+        w_lo = max(0, w_s - window)
+        w_hi = min(len(tokens), w_e + window + 1)
+
+        window_text = text[token_spans[w_lo][0]:token_spans[w_hi - 1][1]]
+        if DEFINE_VERB_RE.search(window_text) and CRITERION_TOKEN_RE.search(window_text):
+            out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_exposure_definition_v5(text: str) -> List[Tuple[int, int, str]]:
