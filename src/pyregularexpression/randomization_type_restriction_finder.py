@@ -52,14 +52,58 @@ def find_randomization_type_restriction_v1(text: str):
 
 def find_randomization_type_restriction_v2(text: str, window: int = 4):
     spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in spans]
-    key_idx = {i for i, t in enumerate(tokens) if RAND_KEY_RE.fullmatch(t)}
-    rest_idx = {i for i, t in enumerate(tokens) if RESTRICT_CUE_RE.fullmatch(t) or RATIO_RE.fullmatch(t)}
+    if not spans:
+        return []
+
+    # Find all restriction and randomization keywords as character spans
+    restriction_spans = [(m.start(), m.end()) for m in RESTRICT_CUE_RE.finditer(text)]
+    ratio_spans = [(m.start(), m.end()) for m in RATIO_RE.finditer(text)]
+    all_restriction_spans = restriction_spans + ratio_spans
+
+    rand_key_spans = [(m.start(), m.end()) for m in RAND_KEY_RE.finditer(text)]
+
+    if not all_restriction_spans or not rand_key_spans:
+        return []
+
+    # Convert character spans to word indices
+    restriction_word_indices = [_char_to_word(s, spans) for s in all_restriction_spans]
+    rand_key_word_indices = [_char_to_word(s, spans) for s in rand_key_spans]
+
     out = []
-    for i in rest_idx:
-        if any(k for k in key_idx if abs(k - i) <= window):
-            w_s, w_e = _char_to_word(spans[i], spans)
-            out.append((w_s, w_e, tokens[i]))
+    for r_ws, r_we in restriction_word_indices:
+        is_near_rand_key = False
+        for k_ws, k_we in rand_key_word_indices:
+            # Check for overlap or proximity within the window.
+            # Proximity is defined as the number of tokens between the spans.
+            is_overlapping = max(k_ws, r_ws) <= min(k_we, r_we)
+
+            if is_overlapping:
+                is_near_rand_key = True
+                break
+
+            # Check distance if not overlapping
+            # Distance is the number of tokens between the end of one span and the start of the other.
+            if r_ws > k_we: # restriction is after keyword
+                distance = r_ws - k_we - 1
+            else: # keyword is after restriction
+                distance = k_ws - r_we - 1
+
+            if distance <= window:
+                is_near_rand_key = True
+                break
+
+        if is_near_rand_key:
+            # Extract the original text snippet for the match
+            start_char = spans[r_ws][0]
+            end_char = spans[r_we][1]
+            snippet = text[start_char:end_char]
+
+            # Avoid traps
+            if TRAP_RE.search(text[max(0, start_char-30):end_char+30]):
+                continue
+
+            out.append((r_ws, r_we, snippet))
+
     return out
 
 def find_randomization_type_restriction_v3(text: str, block_chars: int = 400):
@@ -78,17 +122,48 @@ def find_randomization_type_restriction_v3(text: str, block_chars: int = 400):
 
 def find_randomization_type_restriction_v4(text: str, window: int = 6):
     spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in spans]
-    ratio_idx = {i for i, t in enumerate(tokens) if RATIO_RE.fullmatch(t)}
-    mod_idx = {i for i, t in enumerate(tokens) if MODIFIER_RE.fullmatch(t)}
-    matches = find_randomization_type_restriction_v2(text, window=window)
+    if not spans:
+        return []
+
+    matches_v2 = find_randomization_type_restriction_v2(text, window=window)
+    if not matches_v2:
+        return []
+
+    # Find all ratio and modifier matches as word spans
+    ratio_spans = [_char_to_word(m.span(), spans) for m in RATIO_RE.finditer(text)]
+    mod_spans = [_char_to_word(m.span(), spans) for m in MODIFIER_RE.finditer(text)]
+
     out = []
-    for w_s, w_e, snip in matches:
-        mods_near = sum(1 for m in mod_idx if w_s - window <= m <= w_e + window)
-        ratio_near = any(r for r in ratio_idx if w_s - window <= r <= w_e + window)
+    for w_s, w_e, snip in matches_v2:
+        # Check for a ratio "near" the match from v2
+        # We define "near" as being in the same sentence, which we approximate with a large window
+        sentence_window = 15
+        ratio_near = any(
+            max(r_ws, w_s) <= min(r_we, w_e) or  # Overlap
+            (w_s > r_we and w_s - r_we - 1 <= sentence_window) or  # Match is after ratio
+            (r_ws > w_e and r_ws - w_e - 1 <= sentence_window)  # Ratio is after match
+            for r_ws, r_we in ratio_spans
+        )
+
+        # For modifier counting, we need to be stricter to avoid partial matches inside tokens like '(blocks'
+        MODIFIER_RE_STRICT = re.compile(r"^(?:block|blocks?|permuted|stratified|minimization|strata|ratio)$", re.I)
+        tokens = [text[s:e] for s, e in spans]
+
+        mods_near = 0
+        for i, token in enumerate(tokens):
+            # Check if the token is within the sentence window of the match
+            is_in_window = (max(i, w_s) <= min(i, w_e) or
+                            (w_s > i and w_s - i - 1 <= sentence_window) or
+                            (i > w_e and i - w_e - 1 <= sentence_window))
+
+            if is_in_window and MODIFIER_RE_STRICT.fullmatch(token):
+                mods_near += 1
+
         if ratio_near or mods_near >= 2:
             out.append((w_s, w_e, snip))
-    return out
+
+    # Deduplicate the results, as multiple v2 matches might qualify
+    return sorted(list(set(out)))
 
 def find_randomization_type_restriction_v5(text: str):
     return _collect([TIGHT_TEMPLATE_RE], text)

@@ -55,7 +55,7 @@ QUALIFIER_RE = re.compile(r"\b(?:primary|secondary|tertiary|academic|community|t
 #HEADING_SET_RE = re.compile(r"(?m)^(?:setting|healthcare\s+setting|study\s+setting)\s*[:\-]?\s*$", re.I)
 #HEADING_SET_RE = re.compile(r"(?m)^(?:setting|healthcare\s+setting|study\s+setting|study\s+design|research\s+setting|care\s+setting|clinical\s+setting|service\s+setting)\s*[:\-]?\s*$", re.I)
 HEADING_SET_RE = re.compile(
-    r"(?m)^(?:setting|healthcare\s+setting|study\s+setting|study\s+design|research\s+setting|care\s+setting|clinical\s+setting|service\s+setting)\s*[:\-]?\s*",
+    r"(?m)^(?:setting|healthcare\s+setting|study\s+setting|study\s+design|research\s+setting|care\s+setting|clinical\s+setting|service\s+setting)\s*[:\-\.]?\s*",
     re.I
 )
 
@@ -63,7 +63,7 @@ HEADING_SET_RE = re.compile(
 GENERIC_TRAP_RE = re.compile(r"real[- ]?world\s+setting|setting\s+of\s+care", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:(?:conducted|performed|carried\s+out)\s+in|admitted\s+to|data\s+(?:were\s+extracted\s+)?from)\s+[^\.\\n]{0,80}(?:inpatient|outpatient|primary\s+care|icu|clinic|hospital)\b",
+    r"(?:(?:conducted|performed|carried\s+out)\s+in|admitted\s+to|data\s+(?:were\s+extracted\s+)?from|recruited\s+(?:from|in|at))\s+[^\.\\n]{0,80}(?:inpatient|outpatient|primary\s+care|icu|clinic|hospital|emergency\s+department)\b",
     re.I,
 )
 
@@ -107,7 +107,6 @@ def find_healthcare_setting_v2(text: str, window: int = 3):
 
 def find_healthcare_setting_v3(text: str, block_chars: int = 250):
     text = normalize_text(text)  # Normalize the text first
-    print(f"Normalized text: {text}")  # Debugging line to check the normalized text
     tok_spans = _token_spans(text)
     blocks = []
     for h in HEADING_SET_RE.finditer(text):
@@ -115,7 +114,6 @@ def find_healthcare_setting_v3(text: str, block_chars: int = 250):
         nxt = text.find("\n\n", s)
         e = nxt if 0 <= nxt - s <= block_chars else s + block_chars
         blocks.append((s, e))
-    print(f"Found blocks: {blocks}")  # Debugging line to check block positions
     inside = lambda p: any(s <= p < e for s, e in blocks)
     out = []
     for m in FACILITY_RE.finditer(text):
