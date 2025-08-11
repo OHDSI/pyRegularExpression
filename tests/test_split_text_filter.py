@@ -7,10 +7,8 @@ Run with::
 from __future__ import annotations
 
 import importlib
-from typing import List
 
 import pytest
-from nltk.tokenize import sent_tokenize  # ensures sentence boundaries match helper
 
 # Runtime import because the library lives in the editable src tree during CI
 split_mod = importlib.import_module("pyregularexpression.split_text_filter")
@@ -100,8 +98,8 @@ def test_window_fwd_includes_next_sentence(sample_text):
 
 def test_no_sentence_duplication(sample_text):
     out = _run(sample_text, back=1, fwd=1)
-    matched_sents: List[str] = sent_tokenize(out.matched)
-    notmatched_sents: List[str] = sent_tokenize(out.notmatched)
+    matched_sents = list(out.kept_sentences())
+    notmatched_sents = list(out.dropped_sentences())
     overlap = set(matched_sents).intersection(notmatched_sents)
     assert not overlap, f"Sentences duplicated across splits: {overlap}"
 
