@@ -3,7 +3,7 @@ Five variants (v1–v5):
     • v1 – high recall: any sentence with a registration cue ("trial registration", registered at ClinicalTrials.gov, NCT########, ISRCTN, EudraCT, ChiCTR).
     • v2 – v1 **and** registration verb (registered, prospectively registered, recorded) within ±4 tokens of the cue or identifier.
     • v3 – only inside a *Trial Registration* or *Registration* heading block (first ≈400 characters).
-    • v4 – v2 plus explicit registry identifier pattern (NCT\d{8}, ISRCTN\d+, EudraCT \d{4}-\d{6}-\d{2}, ChiCTR-\w+).
+    • v4 – v2 plus explicit registry identifier pattern (NCT\\d{8}, ISRCTN\\d+, EudraCT \\d{4}-\\d{6}-\\d{2}, ChiCTR-\\w+).
     • v5 – tight template: “This trial was prospectively registered at ClinicalTrials.gov (NCT01234567).”
 Each finder returns tuples: (start_word_idx, end_word_idx, snippet).
 """
@@ -22,11 +22,18 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i,(a,b) in reversed(list(enumerate(spans))) if a<e<=b)
     return w_s, w_e
 
-REGISTRY_ID_RE = re.compile(r"\b(?:NCT\d{8}|ISRCTN\d{6,8}|EudraCT\s*\d{4}-\d{6}-\d{2}|ChiCTR(?:-\w+)?|ANZCTR\s*\w+|JPRN-\w+|ClinicalTrials\.gov|ISRCTN|EudraCT|ChiCTR)\b", re.I)
-REG_CUE_RE = re.compile(r"\b(?:trial\s+registration|study\s+registered|registered\s+(?:at|in|with|on)|recorded\s+as|registration\s+was\s+recorded|prospectively\s+registered|ChiCTR|ClinicalTrials\.gov|EudraCT|ISRCTN)\b", re.I)
+REGISTRY_ID_RE = re.compile(r"\b(?:NCT\d{8}|ISRCTN\d{6,8}|EudraCT\s*\d{4}-\d{6}-\d{2}|ChiCTR(?:-[\w\d]+)?|ACTRN\d{14}|JPRN-UMIN\d{9}|ClinicalTrials\.gov|ISRCTN|EudraCT|ChiCTR|ANZCTR|JPRN)\b", re.I)
+REG_CUE_PATTERNS = [
+    re.compile(r"\b(?:trial\s+registration|registration\s+was\s+recorded)\b", re.I),
+    re.compile(r"\bstudy(?:\s+\w+){0,2}?\s+registered\b", re.I),
+    re.compile(r"\btrial(?:\s+\w+){0,2}?\s+registered\b", re.I),
+    re.compile(r"\bprospectively\s+registered\b", re.I),
+    re.compile(r"\bregistered\s+(?:at|in|with|on)\b", re.I),
+    re.compile(r"\brecorded\s+as\b", re.I),
+]
 VERB_RE = re.compile(r"\b(?:registered|recorded|submitted|prospectively\s+registered)\b", re.I)
 HEAD_REG_RE = re.compile(r"(?m)^(?:trial\s+registration|registration)\s*[:\-]?\s*$", re.I)
-TIGHT_TEMPLATE_RE = re.compile(r"(?:this\s+)?trial\s+was\s+prospectively\s+registered(?:\s+at\s+\w+)?[^\n]{0,60}?(?:NCT\d{8}|ISRCTN\d{6,8}|EudraCT\s*\d{4}-\d{6}-\d{2}|ChiCTR-\w+)", re.I)
+TIGHT_TEMPLATE_RE = re.compile(r"((?:this\s+)?trial\s+was\s+prospectively\s+registered(?:\s+at\s+[\w\.]+)?\s*\(?(?:NCT\d{8}|ISRCTN\d{6,8}|EudraCT\s*\d{4}-\d{6}-\d{2}|ChiCTR(?:-[\w\d]+)?)\)?)", re.I)
 TRAP_RE = re.compile(r"\bIRB\s+|ethical\s+approval|registry\s+of\s+deeds\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, int, str]]:
@@ -46,7 +53,7 @@ def find_trial_registration_v1(text: str) -> List[Tuple[int, int, str]]:
     spans = _token_spans(text)
     out: List[Tuple[int, int, str]] = []
 
-    for patt in [REG_CUE_RE, REGISTRY_ID_RE]:
+    for patt in [*REG_CUE_PATTERNS, REGISTRY_ID_RE]:
         for m in patt.finditer(text):
             context = text[max(0, m.start() - 40): m.end() + 40]
             if TRAP_RE.search(context):
@@ -58,23 +65,37 @@ def find_trial_registration_v1(text: str) -> List[Tuple[int, int, str]]:
 
 def find_trial_registration_v2(text: str, window: int = 6):
     spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in spans]
-    cue_idx = set()
-    verb_idx = set()
     
-    for patt in [REG_CUE_RE, REGISTRY_ID_RE]:
+    cues = {} # Using dict to store cue info, with start word as key
+    for patt in [*REG_CUE_PATTERNS, REGISTRY_ID_RE]:
         for m in patt.finditer(text):
-            w_s, _ = _char_to_word((m.start(), m.end()), spans)
-            cue_idx.add(w_s)
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            # If multiple cues start at the same word, the longest is kept
+            if w_s not in cues or len(m.group(0)) > len(cues[w_s][2]):
+                cues[w_s] = (w_s, w_e, m.group(0))
             
+    verb_idx = set()
     for m in VERB_RE.finditer(text):
-        w_s, _ = _char_to_word((m.start(), m.end()), spans)
-        verb_idx.add(w_s)
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        for i in range(w_s, w_e + 1):
+            verb_idx.add(i)
+
     out: List[Tuple[int, int, str]] = []
-    for c in cue_idx:
-        if any(abs(v - c) <= window for v in verb_idx):
-            w_s, w_e = _char_to_word(spans[c], spans)
-            out.append((w_s, w_e, tokens[c]))
+    for c_start, cue_data in cues.items():
+        c_end = cue_data[1]
+
+        verb_is_near = False
+        for i in range(c_start, c_end + 1):
+            for v_idx in verb_idx:
+                if abs(i - v_idx) <= window:
+                    verb_is_near = True
+                    break
+            if verb_is_near:
+                break
+
+        if verb_is_near:
+            out.append(cue_data)
+
     return out
 
 def find_trial_registration_v3(text: str, block_chars: int = 400):
@@ -82,7 +103,7 @@ def find_trial_registration_v3(text: str, block_chars: int = 400):
     blocks = [(h.end(), min(len(text), h.end() + block_chars)) for h in HEAD_REG_RE.finditer(text)]
     inside = lambda p: any(s <= p < e for s, e in blocks)
     out = []
-    for patt in [REG_CUE_RE, REGISTRY_ID_RE]:
+    for patt in [*REG_CUE_PATTERNS, REGISTRY_ID_RE]:
         for m in patt.finditer(text):
             if inside(m.start()):
                 w_s, w_e = _char_to_word((m.start(), m.end()), spans)
@@ -92,7 +113,7 @@ def find_trial_registration_v3(text: str, block_chars: int = 400):
 def find_trial_registration_v4(text: str, window: int = 6):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    id_idx = {i for i, t in enumerate(tokens) if REGISTRY_ID_RE.fullmatch(t)}
+    id_idx = {i for i, t in enumerate(tokens) if REGISTRY_ID_RE.fullmatch(t.strip('.,'))}
     matches = find_trial_registration_v2(text, window=window)
     out: List[Tuple[int, int, str]] = []
     for w_s, w_e, snip in matches:
