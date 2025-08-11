@@ -38,7 +38,7 @@ def test_extract_medical_codes_basic(text, expected):
 def test_extract_medical_codes_offsets():
     txt = "SNOMED 44054006 recorded during visit."
     spans = extract_medical_codes(txt, return_offsets=True, unique=False)
-    assert spans == [(8, 16, "44054006")]
+    assert spans == [(7, 15, "44054006")]
 
 
 def test_short_numeric_filtered():

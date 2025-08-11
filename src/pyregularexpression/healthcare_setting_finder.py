@@ -40,7 +40,7 @@ def _char_to_word(span: Tuple[int, int], tokens: Sequence[Tuple[int, int]]):
 # 1. Regex assets
 # ─────────────────────────────
 FACILITY_RE = re.compile(
-    r"\b(?:inpatient|outpatient|ambulatory|primary\s+care|secondary\s+care|tertiary\s+care|emergency\s+department|ed|er|icu|intensive\s+care\s+unit|clinic|clinics|hospital(?:\s+based)?|ward|community\s+pharmacy)\b",  # Corrected backslashes
+    r"\b(?:inpatient|outpatient|ambulatory|primary\s+care|secondary\s+care|tertiary\s+care|emergency\s+department|ed|er|icu|intensive\s+care(?:\s+unit)?|clinic|clinics|hospitals?(?:\s+based)?|ward|community\s+pharmacy|settings)\b",  # Corrected backslashes
     re.I,
 )
 
@@ -50,12 +50,12 @@ CONTEXT_RE = re.compile(r"\b(?:setting|settings|clinic|care|unit|hospital|enviro
 
 
 #QUALIFIER_RE = re.compile(r"\b(?:primary|secondary|tertiary|academic|community|teaching|urban|rural)\b", re.I)
-QUALIFIER_RE = re.compile(r"\b(?:primary|secondary|tertiary|academic|community|teaching|urban|rural|outpatient|ambulatory|regional|suburban|specialist|private|public)\b", re.I)
+QUALIFIER_RE = re.compile(r"\b(?:primary|secondary|tertiary|academic|community|teaching|urban|rural|outpatient|ambulatory|regional|suburban|specialist|private|public|emergency)\b", re.I)
 
 #HEADING_SET_RE = re.compile(r"(?m)^(?:setting|healthcare\s+setting|study\s+setting)\s*[:\-]?\s*$", re.I)
 #HEADING_SET_RE = re.compile(r"(?m)^(?:setting|healthcare\s+setting|study\s+setting|study\s+design|research\s+setting|care\s+setting|clinical\s+setting|service\s+setting)\s*[:\-]?\s*$", re.I)
 HEADING_SET_RE = re.compile(
-    r"(?m)^(?:setting|healthcare\s+setting|study\s+setting|study\s+design|research\s+setting|care\s+setting|clinical\s+setting|service\s+setting)\s*[:\-]?\s*.*$",
+    r"(?m)^(?:setting|healthcare\s+setting|study\s+setting|study\s+design|research\s+setting|care\s+setting|clinical\s+setting|service\s+setting)\s*[:\-]?\s*",
     re.I
 )
 
@@ -63,7 +63,7 @@ HEADING_SET_RE = re.compile(
 GENERIC_TRAP_RE = re.compile(r"real[- ]?world\s+setting|setting\s+of\s+care", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:(?:conducted|performed|carried\s+out)\s+in|data\s+from)\s+[^\.\\n]{0,80}(?:inpatient|outpatient|primary\s+care|icu|clinic|hospital)\b",
+    r"(?:(?:conducted|performed|carried\s+out)\s+in|admitted\s+to|data\s+(?:were\s+extracted\s+)?from)\s+[^\.\\n]{0,80}(?:inpatient|outpatient|primary\s+care|icu|clinic|hospital)\b",
     re.I,
 )
 
@@ -96,7 +96,7 @@ def find_healthcare_setting_v2(text: str, window: int = 3):
     text = normalize_text(text)  # Normalize the text first
     tok_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in tok_spans]
-    ctx_idx = {i for i, t in enumerate(tokens) if CONTEXT_RE.fullmatch(t)}
+    ctx_idx = {i for i, t in enumerate(tokens) if CONTEXT_RE.search(t)}
     out = []
     for m in FACILITY_RE.finditer(text):
         w_s, w_e = _char_to_word((m.start(), m.end()), tok_spans)
@@ -133,7 +133,7 @@ def find_healthcare_setting_v4(text: str, window: int = 4):
     tokens = [text[s:e] for s, e in tok_spans]
     
     # Create a set of indices for tokens that are qualifiers
-    qual_idx = {i for i, t in enumerate(tokens) if QUALIFIER_RE.fullmatch(t)}
+    qual_idx = {i for i, t in enumerate(tokens) if QUALIFIER_RE.search(t)}
     
     # Get matches from v2 (facility term + context)
     matches = find_healthcare_setting_v2(text, window=window)

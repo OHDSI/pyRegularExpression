@@ -25,11 +25,23 @@ medical_code_pattern = {
     # Only CPT codes beginning with 9
     "CPT":           re.compile(r"\b9\d{4}(?:-\d{2})?\b"),
     "LOINC":         re.compile(r"\b\d{1,5}-\d\b"),
+    "NDC":           re.compile(r"\b\d{4,5}-\d{3,4}-\d{1,2}\b"),
     "SNOMED":        re.compile(r"\b\d{6,18}\b"),
     "ATC":           re.compile(r"\b[A-Z]\d{2}[A-Z]{2}\d{2}\b"),
 }
 
-def extract_medical_codes(text: str):
+def extract_medical_codes(
+    text: str, return_offsets: bool = False, unique: bool = False
+):
+    """
+    Extract medical codes from text.
+    Args:
+        text: The text to search.
+        return_offsets: If True, return (start, end) character offsets instead of the codes.
+        unique: If True, return only unique codes.
+    Returns:
+        A list of strings (codes) or a list of tuples (offsets).
+    """
     # split only ICD-10 adjacency
     text = re.sub(r"(?<=\.\d)(?=[A-Z])", " ", text)
 
@@ -46,7 +58,20 @@ def extract_medical_codes(text: str):
             if system == "SNOMED" and re.fullmatch(r"\d{5}", code):
                 continue
 
-            matches.append((m.start(), code))
+            matches.append({"start": m.start(), "end": m.end(), "code": code})
 
-    matches.sort(key=lambda x: x[0])
-    return [code for _, code in matches]
+    matches.sort(key=lambda x: x["start"])
+
+    if unique:
+        seen = set()
+        unique_matches = []
+        for match in matches:
+            if match["code"] not in seen:
+                seen.add(match["code"])
+                unique_matches.append(match)
+        matches = unique_matches
+
+    if return_offsets:
+        return [(match["start"], match["end"], match["code"]) for match in matches]
+    else:
+        return [match["code"] for match in matches]
