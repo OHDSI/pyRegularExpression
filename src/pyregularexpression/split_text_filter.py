@@ -62,7 +62,9 @@ def split_text_by_filter(
         for w_start, _w_end, hit in finder(text):
             # Validate the token-span from the finder. For single-token matches,
             # w_start and _w_end will be equal (inclusive index).
-            if not (w_start <= _w_end and w_start < len(token_spans)):
+            # Validate the token-span from the finder. It must be a valid slice,
+            # and both start and end must be within the bounds of the token list.
+            if not (0 <= w_start < len(token_spans) and w_start <= _w_end and _w_end < len(token_spans)):
                 continue
 
             # Sentence containing the start of the match
