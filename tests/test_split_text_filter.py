@@ -49,18 +49,18 @@ def _run(text: str, back: int = 0, fwd: int = 0):
 
 def test_no_match_returns_all_unmatched():
     out = split_text_by_filter("Nothing special here.", [find_medical_code_v1])
-    assert out["matched"] == ""
-    assert out["notmatched"] == "Nothing special here."
+    assert out.matched == ""
+    assert out.notmatched == "Nothing special here."
 
 
 def test_basic_matches(sample_text):
     out = _run(sample_text)
     # Should retain keywords from each finder
-    assert "I60" in out["matched"]
-    assert "algorithm validation" in out["matched"]
-    assert "Lost to follow‑up" in out["matched"]
+    assert "I60" in out.matched
+    assert "algorithm validation" in out.matched
+    assert "Lost to follow‑up" in out.matched
     # Ensure removed region truly lacks matched keywords
-    assert "I60" not in out["notmatched"]
+    assert "I60" not in out.notmatched
 
 
 # ──────────────────────────────────────────────────────────
@@ -69,12 +69,12 @@ def test_basic_matches(sample_text):
 
 def test_window_back_includes_previous_sentence(sample_text):
     out = _run(sample_text, back=1)
-    assert "Sentence A." in out["matched"], "Previous sentence not included by window_back=1"
+    assert "Sentence A." in out.matched, "Previous sentence not included by window_back=1"
 
 
 def test_no_sentence_duplication(sample_text):
     out = _run(sample_text, back=1, fwd=1)
-    matched_sents: List[str] = sent_tokenize(out["matched"])
-    notmatched_sents: List[str] = sent_tokenize(out["notmatched"])
+    matched_sents: List[str] = sent_tokenize(out.matched)
+    notmatched_sents: List[str] = sent_tokenize(out.notmatched)
     overlap = set(matched_sents).intersection(notmatched_sents)
     assert not overlap, f"Sentences duplicated across splits: {overlap}"
