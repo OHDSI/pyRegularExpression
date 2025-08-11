@@ -7,8 +7,10 @@ Run with::
 from __future__ import annotations
 
 import importlib
+from typing import List, Tuple
 
 import pytest
+from nltk.tokenize import sent_tokenize
 
 # Runtime import because the library lives in the editable src tree during CI
 split_mod = importlib.import_module("pyregularexpression.split_text_filter")
