@@ -9,6 +9,7 @@ Each finder returns tuples: (start_word_idx, end_word_idx, snippet).
 """
 from __future__ import annotations
 import re
+import string
 from typing import List, Tuple, Sequence, Dict, Callable
 
 TOKEN_RE = re.compile(r"\S+")
@@ -27,15 +28,11 @@ SIM_CUE_RE = re.compile(
     r"(?:[^\.\n]{0,20}?\b(?:placebo|capsule|tablet|injection|procedure|device|patch|solution|syringe))?",
     re.I,
 )
-
-FORM_RE = re.compile(r"\b(?:placebo|capsule|tablet|injection|solution|suspension|device|procedure|patch|syringe)\b", re.I)
-QUAL_RE = re.compile(r"\b(?:identical|matched|indistinguishable)\b", re.I)
+FORM_RE = re.compile(r"\b(?:placebo|capsule|tablet|injection|solution|suspension|device|procedure|patch|syringe)s?\b", re.I)
+QUAL_RE = re.compile(r"\b(?:identical|matched|indistinguishable)s?\b", re.I)
 HEAD_SIM_RE = re.compile(r"(?m)^(?:similarity\s+of\s+interventions?|blinding\s+materials?|manufacturing\s+matching)\s*[:\-]?\s*$", re.I)
 TRAP_RE = re.compile(r"\bsimilar\s+in\s+(?:duration|effect|class)\b", re.I)
-TIGHT_TEMPLATE_RE = re.compile(
-    r"placebo\s+(?:capsule|tablet|injection|solution)\s+identical\s+in\s+appearance\s+to\s+(?:active|study)\s+drug",
-    re.I,
-)
+TIGHT_TEMPLATE_RE = re.compile(r"placebo\s+(?:capsule|tablet|injection|solution)\s+identical\s+(?:in\s+appearance\s+to|to)\s+(?:active|study)\s+(?:drug|treatment)",re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans = _token_spans(text)
@@ -54,13 +51,13 @@ def find_similarity_of_interventions_v1(text: str):
 def find_similarity_of_interventions_v2(text: str, window: int = 4):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    form_idx = {i for i, t in enumerate(tokens) if FORM_RE.fullmatch(t)}
-    sim_idx = {i for i, t in enumerate(tokens) if SIM_CUE_RE.fullmatch(t)}
+    tokens_clean = [t.strip(string.punctuation) for t in tokens]
+    form_idx = {i for i, t in enumerate(tokens_clean) if FORM_RE.fullmatch(t)}
     out = []
-    for s_i in sim_idx:
-        if any(f for f in form_idx if abs(f - s_i) <= window):
-            w_s, w_e = _char_to_word(spans[s_i], spans)
-            out.append((w_s, w_e, tokens[s_i]))
+    for m in SIM_CUE_RE.finditer(text):
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        if any(abs(f - i) <= window for f in form_idx for i in range(w_s, w_e + 1)):
+            out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_similarity_of_interventions_v3(text: str, block_chars: int = 400):
@@ -80,12 +77,18 @@ def find_similarity_of_interventions_v3(text: str, block_chars: int = 400):
 def find_similarity_of_interventions_v4(text: str, window: int = 6):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
+    clean_tokens = [t.strip(string.punctuation) for t in tokens]
     matches = find_similarity_of_interventions_v2(text, window=window)
     out = []
     for w_s, w_e, snip in matches:
-        qual_near = any(QUAL_RE.fullmatch(tokens[i]) for i in range(max(0, w_s-window), min(len(tokens), w_e+window)))
-        form_near = any(FORM_RE.fullmatch(tokens[i]) for i in range(max(0, w_s-window), min(len(tokens), w_e+window)))
-        if qual_near and form_near:
+        start = max(0, w_s - window)
+        end = min(len(clean_tokens), w_e + window + 1)
+        has_qualifier = any(QUAL_RE.fullmatch(clean_tokens[i]) for i in range(start, end))
+        has_form = any(FORM_RE.fullmatch(clean_tokens[i]) for i in range(start, end))
+        window_tokens_lower = [t.lower() for t in clean_tokens[start:end]]
+        cue_pos_in_window = w_s - start
+        negated = any(tok in {"no","not","without","none"} for tok in window_tokens_lower[:cue_pos_in_window])
+        if has_qualifier and has_form and not negated:
             out.append((w_s, w_e, snip))
     return out
 

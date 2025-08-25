@@ -29,20 +29,21 @@ def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[i
 # ─────────────────────────────
 # 1.  Regex assets
 # ─────────────────────────────
-SENS_PHRASE_RE = re.compile(r"\bsensitivity\s+analyse?s\b", re.I)
+SENS_PHRASE_RE = re.compile(r"\bsensitivity\s+analys(?:is|es)\b", re.I)
 
 ANALYSIS_VERB_RE = re.compile(r"\b(?:performed|conducted|repeated|ran|undertook|carried\s+out)\b", re.I)
 
 SCENARIO_TOKEN_RE = re.compile(r"\b(?:excluding|removing|restricting|alternative|varying|assumption|switchers|per[- ]?protocol|as[- ]?treated)\b", re.I)
 
-HEADING_SENS_RE = re.compile(r"(?m)^(?:sensitivity\s+analysis(?:es)?)\s*[:\-]?\s*$", re.I)
+HEADING_SENS_RE = re.compile(r"(?im)^\s*sensitivity\s+analys(?:is|es)\s*[:\-]?\s*$")
 
 TRAP_RE = re.compile(r"\bassay\s+sensitivity\b|\bsensitivity\s+\d{1,3}\s*%", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:sensitivity\s+analyse?s\s+(?:were\s+)?(?:performed|conducted|repeated)|excluding\s+[^\.\n]{0,60}\s+in\s+sensitivity\s+analyse?s)",
+    r"(?:sensitivity\s+analys(?:is|es)\s+(?:were\s+)?(?:performed|conducted|repeated)|excluding\s+[^\.\n]{0,60}\s+in\s+sensitivity\s+analys(?:is|es))",
     re.I,
 )
+
 
 # ─────────────────────────────
 # 2.  Helper
@@ -69,7 +70,7 @@ def find_sensitivity_analysis_v2(text: str, window: int = 4) -> List[Tuple[int, 
     """Tier 2 – sensitivity phrase + analysis verb within ±window tokens."""
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    verb_idx = {i for i, t in enumerate(tokens) if ANALYSIS_VERB_RE.fullmatch(t)}
+    verb_idx = {i for i, t in enumerate(tokens) if ANALYSIS_VERB_RE.search(t)}
     out: List[Tuple[int, int, str]] = []
     for m in SENS_PHRASE_RE.finditer(text):
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
@@ -77,21 +78,30 @@ def find_sensitivity_analysis_v2(text: str, window: int = 4) -> List[Tuple[int, 
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_sensitivity_analysis_v3(text: str, block_chars: int = 300) -> List[Tuple[int, int, str]]:
-    """Tier 3 – within Sensitivity analysis heading blocks."""
+def find_sensitivity_analysis_v3(text: str) -> list[tuple[int, int, str]]:
+    """Detect sensitivity analysis phrases only inside heading blocks (generalized)."""
     token_spans = _token_spans(text)
-    blocks: List[Tuple[int, int]] = []
-    for h in HEADING_SENS_RE.finditer(text):
-        s = h.end()
-        nxt = text.find("\n\n", s)
-        e = nxt if 0 <= nxt - s <= block_chars else s + block_chars
-        blocks.append((s, e))
-    inside = lambda p: any(s <= p < e for s, e in blocks)
-    out: List[Tuple[int, int, str]] = []
-    for m in SENS_PHRASE_RE.finditer(text):
-        if inside(m.start()):
-            w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
-            out.append((w_s, w_e, m.group(0)))
+    out: list[tuple[int, int, str]] = []
+    heading_re = re.compile(r"(?im)^\s*sensitivity\s+analys(?:is|es)\s*[:\-]?\s*$")
+    headings = list(heading_re.finditer(text))
+    heading_positions = [h.start() for h in headings] + [len(text)]
+    for i in range(len(headings)):
+        start_block = headings[i].start()     
+        end_block = heading_positions[i + 1]   
+        block_text = text[start_block:end_block]
+        for m in SENS_PHRASE_RE.finditer(block_text):
+            start_char = start_block + m.start()
+            end_char = start_block + m.end()
+            w_start = w_end = None
+            for idx, (ts, te) in enumerate(token_spans):
+                if ts <= start_char < te:
+                    w_start = idx
+                if ts < end_char <= te:
+                    w_end = idx
+                if w_start is not None and w_end is not None:
+                    break
+            if w_start is not None and w_end is not None:
+                out.append((w_start, w_end, m.group(0)))
     return out
 
 def find_sensitivity_analysis_v4(text: str, window: int = 6) -> List[Tuple[int, int, str]]:

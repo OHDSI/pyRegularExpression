@@ -23,24 +23,19 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i, (a, b) in reversed(list(enumerate(spans))) if a < e <= b)
     return w_s, w_e
 
-CHANGE_CUE_RE = re.compile(
-    r"\b(?:protocol\s+was\s+amended|protocol\s+amendment|amended\s+the\s+protocol|changes?\s+to\s+(?:the\s+)?(?:study|trial)\s+(?:design|protocol)|modified\s+(?:the\s+)?(?:trial|study)\s+protocol|unplanned\s+adjustments?|revised\s+inclusion\s+criteria|updated\s+study\s+design)\b",
-    re.I,
-)
+CHANGE_CUE_RE = re.compile(r"\b(?:protocol\s+was\s+amended|protocol\s+amendment|amended\s+the\s+protocol|the\s+amended\s+protocol|amended\s+protocol|changes?\s+to\s+(?:the\s+)?(?:study|trial)\s+(?:design|protocol)|modified\s+(?:the\s+)?(?:trial|study)\s+protocol|unplanned\s+adjustments?|revised\s+inclusion\s+criteria|updated\s+study\s+design)\b", re.I)
 
-TEMPORAL_RE = re.compile(
-    r"\b(?:after\s+(?:the\s+)?(?:trial|study)\s+(?:began|started|initiation)|during\s+(?:the\s+)?(?:trial|study)|mid[- ]?study|\d+\s+(?:weeks?|months?|years?)\s+into\s+(?:the\s+)?(?:trial|study))\b",
-    re.I,
-)
+AMEND_KEY_RE = re.compile(r"\bprotocol\s+amendment|amended\s+protocol|the\s+amended\s+protocol\b", re.I)
 
-AMEND_KEY_RE = re.compile(r"\bprotocol\s+amendment|amended\s+protocol\b", re.I)
 HEADING_AMD_RE = re.compile(r"(?m)^(?:protocol\s+amendments?|amendments?|changes\s+to\s+(?:protocol|design))\s*[:\-]?\s*$", re.I)
-TRAP_RE = re.compile(r"\b(before\s+(?:enrolment|enrollment|recruitment|trial\s+start)|design\s+changes?\s+planned)\b", re.I)
-TIGHT_TEMPLATE_RE = re.compile(
-    r"\b\d+\s+(?:weeks?|months?|years?)\s+into\s+the\s+(?:trial|study),?\s+the\s+protocol\s+was\s+amended[^\.\n]{0,120}",
-    re.I,
-)
 
+TRAP_RE = re.compile(r"\b(before\s+(?:enrolment|enrollment|recruitment|trial\s+start)|design\s+changes?\s+planned)\b", re.I)
+
+NUMBER_WORDS = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty"
+
+TEMPORAL_RE = re.compile(rf"\b(?:after\s+(?:the\s+)?(?:trial|study)\s+(?:began|started|initiation)|during\s+(?:the\s+)?(?:trial|study)|mid[- ]?study|(?:\d+|{NUMBER_WORDS})\s+(?:weeks?|months?|years?)\s+into\s+(?:the\s+)?(?:trial|study))\b", re.I)
+
+TIGHT_TEMPLATE_RE = re.compile(rf"\b(?:\d+|{NUMBER_WORDS})\s+(?:weeks?|months?|years?)\s+into\s+the\s+(?:trial|study),?\s+the\s+protocol\s+was\s+amended[^\.\n]{{0,120}}", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans = _token_spans(text)
@@ -58,12 +53,11 @@ def find_trial_design_changes_v1(text: str):
 
 def find_trial_design_changes_v2(text: str, window: int = 4):
     spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in spans]
-    temp_idx = {i for i, t in enumerate(tokens) if TEMPORAL_RE.fullmatch(t)}
+    temporal_hits = [ _char_to_word((m.start(), m.end()), spans) for m in TEMPORAL_RE.finditer(text) ]
     out = []
     for m in CHANGE_CUE_RE.finditer(text):
         w_s, w_e = _char_to_word((m.start(), m.end()), spans)
-        if any(t for t in temp_idx if w_s - window <= t <= w_e + window):
+        if any(ts <= w_e + window and te >= w_s - window for ts, te in temporal_hits):
             out.append((w_s, w_e, m.group(0)))
     return out
 
@@ -83,12 +77,11 @@ def find_trial_design_changes_v3(text: str, block_chars: int = 400):
 
 def find_trial_design_changes_v4(text: str, window: int = 4):
     spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in spans]
-    amend_idx = {i for i, t in enumerate(tokens) if AMEND_KEY_RE.fullmatch(t)}
+    amend_hits = [ _char_to_word((m.start(), m.end()), spans) for m in AMEND_KEY_RE.finditer(text) ]
     matches = find_trial_design_changes_v2(text, window=window)
     out = []
     for w_s, w_e, snip in matches:
-        if any(a for a in amend_idx if w_s - window <= a <= w_e + window):
+        if any(as_ <= w_e + window and ae >= w_s - window for as_, ae in amend_hits):
             out.append((w_s, w_e, snip))
     return out
 

@@ -22,13 +22,13 @@ def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[i
     w_end = next(i for i, (s, e) in reversed(list(enumerate(token_spans))) if s < e_char <= e)
     return w_start, w_end
 
-SEVERITY_TERM_RE = re.compile(r"\b(?:severity|mild|moderate|severe)\b", re.I)
+SEVERITY_TERM_RE = re.compile(r"\b(?:severity|mild|moderate|severe)\b(?!\s+weather\b)", re.I)
 DEFINE_VERB_RE = re.compile(r"\b(?:defined|classified|categoris(?:ed|ed)|graded|stratified|assessed)\b", re.I)
-LISTING_PATTERN_RE = re.compile(r"mild[\/ ,]+moderate[\/ ,]+severe", re.I)
+LISTING_PATTERN_RE = re.compile(r"mild\s*(?:[\/,]| and )\s*moderate\s*(?:[\/,]| and )\s*severe(?:\s+[a-zA-Z ]+)?", re.I)
 THRESHOLD_TOKEN_RE = re.compile(r"\b(?:>=|<=|>|<|iv\s+antibiotics|admission|hospitalisation|oxygen|\d+\s*points?)\b", re.I)
-HEADING_SEVERITY_RE = re.compile(r"(?m)^(?:severity\s+(?:definition|classification|grading))\s*[:\-]?\s*$", re.I)
+HEADING_SEVERITY_RE = re.compile(r"(?m)^(?:severity|classification)\s*(?:definition|grading|was recorded)?\s*[:\-]?\s*$", re.I)
 TRAP_RE = re.compile(r"\b(?:severe|moderate|mild)\b(?![^\.]{0,40}(?:defined|classified))", re.I)
-TIGHT_TEMPLATE_RE = re.compile(r"severity\s+(?:was\s+)?defined\s+as\s+[^\.\n]{0,100}|classified\s+as\s+mild[\/ ,]+moderate[\/ ,]+severe[^\.\n]{0,100}", re.I)
+TIGHT_TEMPLATE_RE = re.compile(r"(?:severity\s+(?:was\s+)?defined\s+(?:by|as)\s+[^\.\n]{0,100})|(?:classified\s+as\s+mild[\/ ,]+moderate[\/ ,]+severe(?:\s+based\s+on[^\.\n]{0,100})?)",re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, int, str]]:
     token_spans = _token_spans(text)
@@ -50,22 +50,37 @@ def find_severity_definition_v2(text: str, window: int = 5):
         if any(v for v in verb_idx if w_s-window<=v<=w_e+window): out.append((w_s,w_e,m.group(0)))
     return out
 
-def find_severity_definition_v3(text: str, block_chars:int=400):
-    token_spans=_token_spans(text); blocks=[]
+def find_severity_definition_v3(text: str, block_chars: int = 400):
+    token_spans = _token_spans(text)
+    blocks = []
     for h in HEADING_SEVERITY_RE.finditer(text):
-        s=h.end(); nb=text.find("\n\n",s); e=nb if 0<=nb-s<=block_chars else s+block_chars; blocks.append((s,e))
-    inside=lambda p:any(s<=p<e for s,e in blocks)
-    return [_char_span_to_word_span((m.start(),m.end()),token_spans)+(m.group(0),) for m in SEVERITY_TERM_RE.finditer(text) if inside(m.start())]
+        s = h.end()
+        nb = text.find("\n\n", s)
+        e = nb if nb != -1 else len(text)
+        e = min(s + block_chars, e)
+        blocks.append((s, e)) 
+    inside = lambda p: any(s <= p < e for s, e in blocks)
+    return [
+        _char_span_to_word_span((m.start(), m.end()), token_spans) + (m.group(0),)
+        for m in SEVERITY_TERM_RE.finditer(text)
+        if inside(m.start())
+    ]
 
-def find_severity_definition_v4(text: str, window:int=6):
-    token_spans=_token_spans(text); tokens=[text[s:e] for s,e in token_spans]
-    thresh={i for i,t in enumerate(tokens) if THRESHOLD_TOKEN_RE.fullmatch(t)}
-    matches=find_severity_definition_v2(text,window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        sentence=text[max(0,text.rfind('.',0,w_s)): text.find('.',w_e)+1 or len(text)]
-        if LISTING_PATTERN_RE.search(sentence) or any(t for t in thresh if w_s-window<=t<=w_e+window):
-            out.append((w_s,w_e,snip))
+def find_severity_definition_v4(text: str, window: int = 6):
+    token_spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in token_spans]
+    out = []
+    for m in LISTING_PATTERN_RE.finditer(text):
+        try:
+            w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+            out.append((w_s, w_e, m.group(0)))
+        except StopIteration:
+            continue
+    thresh = {i for i, t in enumerate(tokens) if THRESHOLD_TOKEN_RE.fullmatch(t)}
+    matches = find_severity_definition_v2(text, window)
+    for w_s, w_e, snip in matches:
+        if any(i for i in thresh if w_s - window <= i <= w_e + window):
+            out.append((w_s, w_e, snip))
     return out
 
 def find_severity_definition_v5(text:str): return _collect([TIGHT_TEMPLATE_RE], text)

@@ -23,9 +23,12 @@ def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[i
     return w_start, w_end
 
 TREATMENT_CUE_RE = re.compile(r"\b(?:treatment|treated|intervention|therapy|regimen)\b", re.I)
-DEFINE_VERB_RE = re.compile(r"\b(?:received|administered|given|consisted\s+of|comprised|initiated|delivered)\b", re.I)
-REGIMEN_TOKEN_RE = re.compile(r"\b(?:\d+\s*(?:mg|ml|iu|mcg|g)|daily|weekly|monthly|once\s+daily|twice\s+daily|x\s*\d+\s*(?:weeks?|months?)|for\s+\d+\s*(?:weeks?|months?))\b", re.I)
-HEADING_TREATMENT_RE = re.compile(r"(?m)^(?:treatment\s+(?:definition|regimen)|intervention|drug\s+therapy)\s*[:\-]?\s*$", re.I)
+DEFINE_VERB_RE = re.compile(r"\b(?:received|administered|given|consisted|of|comprised|initiated|delivered)\b", re.I)
+HEADING_TREATMENT_RE = re.compile(r"(?im)^(?:treatment\s+(?:definition|regimen)|intervention|drug\s+therapy)\s*[:\-]?", re.I)
+REGIMEN_TOKEN_RE = re.compile(
+    r"\b(?:\d+\s*(?:mg|ml|iu|mcg|g)|(?:iu(?:/kg)?|mg|ml|mcg|g)|daily|weekly|monthly|once\s+daily|twice\s+daily|x\s*\d+\s*(?:weeks?|months?)|for\s+\d+\s*(?:weeks?|months?))\b",
+    re.I,
+)
 TRAP_RE = re.compile(r"\b(?:as\s+needed|prn|if\s+needed|according\s+to\s+need|outcome)\b", re.I)
 TIGHT_TEMPLATE_RE = re.compile(r"(?:treatment\s+group\s+received|intervention\s+consisted\s+of|drug\s+\w+\s*=?)\s+[A-Za-z0-9\s×x/\.\-]{5,80}", re.I)
 
@@ -55,7 +58,7 @@ def find_treatment_definition_v2(text: str, window: int = 5):
 def find_treatment_definition_v3(text: str, block_chars:int=400):
     token_spans=_token_spans(text); blocks=[]
     for h in HEADING_TREATMENT_RE.finditer(text):
-        s=h.end(); nb=text.find("\n\n",s); e=nb if 0<=nb-s<=block_chars else s+block_chars; blocks.append((s,e))
+        s=h.start(); nb=text.find("\n\n",h.end()); e=nb if 0<=nb-h.end()<=block_chars else h.end()+block_chars; blocks.append((s,e))
     inside=lambda p:any(s<=p<e for s,e in blocks)
     return [_char_span_to_word_span((m.start(),m.end()),token_spans)+ (m.group(0),) for m in TREATMENT_CUE_RE.finditer(text) if inside(m.start())]
 

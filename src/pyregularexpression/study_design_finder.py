@@ -33,7 +33,7 @@ def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[i
 # ─────────────────────────────
 DESIGN_KEYWORD_RE = re.compile(
     r"\b(?:randomi(?:s|z)ed\s+controlled\s+trial|rct|cohort\s+study|prospective\s+cohort|retrospective\s+cohort|case[- ]?control\s+study|cross[- ]?sectional\s+study|nested\s+case[- ]?control|case\s+series|case\s+report|ecological\s+study|registry\s+study)\b",
-    re.I,
+    re.I
 )
 
 LINK_PHRASE_RE = re.compile(r"\b(?:was|were|is|study\s+was|this\s+was|conducted\s+as)\b", re.I)
