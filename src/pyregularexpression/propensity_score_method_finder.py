@@ -22,7 +22,10 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i,(a,b) in reversed(list(enumerate(spans))) if a<e<=b)
     return w_s, w_e
 
-PS_CUE_RE = re.compile(r"\b(?:propensity\s+score|ps[- ]?matched|ps[- ]?weight(?:ed|ing)|iptw|ipw|smr\s+weight(?:ed|ing)?|inverse\s+probability\s+weight(?:ed|ing)?|doubly\s+robust|augmented\s+iptw)\b", re.I)
+PS_CUE_RE = re.compile(
+    r"\b(?:propensity\s+scores?|ps[- ]?matched|ps[- ]?weight(?:ed|ing)|iptw|ipw|smr\s+weight(?:ed|ing)?|inverse\s+probability\s+weight(?:ed|ing)?|doubly\s+robust|augmented\s+iptw)\b",
+    re.I,
+)
 VERB_RE = re.compile(r"\b(?:calculated|estimated|computed|derived|applied|used|performed|implemented)\b", re.I)
 TECH_RE = re.compile(r"\b(?:matching|weighting|stratification|iptw|inverse\s+probability|smr|stabilized|fine\s+stratification|doubly\s+robust)\b", re.I)
 HEAD_PS_RE = re.compile(r"(?m)^(?:propensity\s+score|confounding\s+control|ps\s+method)\s*[:\-]?\s*$", re.I)
@@ -44,15 +47,19 @@ def find_propensity_score_method_v1(text: str):
     return _collect([PS_CUE_RE], text)
 
 def find_propensity_score_method_v2(text: str, window: int = 4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if PS_CUE_RE.fullmatch(t)}
-    verb_idx={i for i,t in enumerate(tokens) if VERB_RE.fullmatch(t)}
-    out=[]
-    for c in cue_idx:
-        if any(abs(v-c)<=window for v in verb_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+    spans = _token_spans(text)
+    cue_spans = []
+    for m in PS_CUE_RE.finditer(text):
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        cue_spans.append((w_s, w_e, m.group(0)))
+    verb_positions = []
+    for m in VERB_RE.finditer(text):
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        verb_positions.extend(range(w_s, w_e + 1))
+    out = []
+    for w_s, w_e, snip in cue_spans:
+        if any(min(abs(v - w_s), abs(v - w_e)) <= window for v in verb_positions):
+            out.append((w_s, w_e, snip))
     return out
 
 def find_propensity_score_method_v3(text: str, block_chars: int = 400):
@@ -70,14 +77,16 @@ def find_propensity_score_method_v3(text: str, block_chars: int = 400):
     return out
 
 def find_propensity_score_method_v4(text: str, window: int = 6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    tech_idx={i for i,t in enumerate(tokens) if TECH_RE.fullmatch(t)}
-    matches=find_propensity_score_method_v2(text, window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=t<=w_e+window for t in tech_idx):
-            out.append((w_s,w_e,snip))
+    spans = _token_spans(text)
+    tech_positions = []
+    for m in TECH_RE.finditer(text):
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        tech_positions.extend(range(w_s, w_e + 1))
+    matches = find_propensity_score_method_v2(text, window=window)
+    out = []
+    for w_s, w_e, snip in matches:
+        if any(w_s - window <= t <= w_e + window for t in tech_positions):
+            out.append((w_s, w_e, snip))
     return out
 
 def find_propensity_score_method_v5(text: str):

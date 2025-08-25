@@ -25,7 +25,7 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
 NUM_RE = r"\d{1,5}"
 NUM_TOKEN_RE = re.compile(r"^\d{1,5}$")
 ANALYZE_CUE_RE = re.compile(r"\b(?:analys(?:ed|is)|included\s+in\s+analysis|participants?\s+analys(?:ed|is)|evaluated|assessed)\b", re.I)
-N_EQUALS_RE = re.compile(r"\bn\s*=\s*\d+", re.I)
+N_EQUALS_RE = re.compile(r"n\s*=\s*\d+", re.I)
 GROUP_RE = re.compile(r"\b(?:treatment|intervention|placebo|control|arm|group|cohort)\b", re.I)
 POP_RE = re.compile(r"\b(?:intention[- ]to[- ]treat|itt|per[- ]protocol|pp|safety\s+set)\b", re.I)
 HEAD_COUNT_RE = re.compile(r"(?m)^(?:numbers?\s+analys(?:ed|ed)|analysis\s+population|participants?\s+analys(?:ed|is))\s*[:\-]?\s*$", re.I)
@@ -44,21 +44,21 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     return out
 
 def find_numbers_analyzed_v1(text: str):
-    pattern = re.compile(rf"(?:{ANALYZE_CUE_RE.pattern}|{N_EQUALS_RE.pattern})[^\n]{{0,15}}{NUM_RE}", re.I)
+    pattern = re.compile(rf"(?:{ANALYZE_CUE_RE.pattern}|{N_EQUALS_RE.pattern})(?:[^\n]{{0,15}}{NUM_RE})?", re.I)
     return _collect([pattern], text)
 
 def find_numbers_analyzed_v2(text: str, window: int = 4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if ANALYZE_CUE_RE.fullmatch(t) or N_EQUALS_RE.fullmatch(t)}
-    num_idx={i for i,t in enumerate(tokens) if NUM_TOKEN_RE.fullmatch(t)}
-    grp_idx={i for i,t in enumerate(tokens) if GROUP_RE.fullmatch(t)}
-    out=[]
-    for c in cue_idx:
-        if any(abs(n-c)<=window for n in num_idx) and any(abs(g-c)<=window for g in grp_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
-    return out
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s,e in spans]
+    matches = []
+    for m in _collect([ANALYZE_CUE_RE, N_EQUALS_RE], text):
+        cue_start, cue_end, cue_snip = m
+        for i, t in enumerate(tokens):
+            if GROUP_RE.search(t):
+                if abs(i - cue_start) <= window or abs(i - cue_end) <= window:
+                    matches.append(m)
+                    break
+    return matches
 
 def find_numbers_analyzed_v3(text: str, block_chars: int = 400):
     spans=_token_spans(text)
@@ -77,7 +77,7 @@ def find_numbers_analyzed_v3(text: str, block_chars: int = 400):
 def find_numbers_analyzed_v4(text: str, window: int = 6):
     spans=_token_spans(text)
     tokens=[text[s:e] for s,e in spans]
-    pop_idx={i for i,t in enumerate(tokens) if POP_RE.fullmatch(t)}
+    pop_idx={i for i,t in enumerate(tokens) if POP_RE.search(t)}
     matches=find_numbers_analyzed_v2(text, window=window)
     out=[]
     for w_s,w_e,snip in matches:

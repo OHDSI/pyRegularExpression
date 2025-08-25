@@ -1,4 +1,13 @@
-"""Tests for random_sequence_generation_finder."""
+# tests/test_random_sequence_generation_finder.py
+"""
+Complete test suite for random_sequence_generation_finder.py.
+Covers five variants (v1–v5):
+    • v1 – high recall (any generation cue)
+    • v2 – cue + randomisation keyword window
+    • v3 – heading block
+    • v4 – cue + duration + method modifier
+    • v5 – tight template
+"""
 import pytest
 from pyregularexpression.random_sequence_generation_finder import (
     find_random_sequence_generation_v1,
@@ -6,55 +15,87 @@ from pyregularexpression.random_sequence_generation_finder import (
     find_random_sequence_generation_v3,
     find_random_sequence_generation_v4,
     find_random_sequence_generation_v5,
-    RANDOM_SEQUENCE_GENERATION_FINDERS,
 )
 
-# Positive examples
-HIT_BLOCK = "The allocation sequence was computer-generated using block randomization with block size = 4."
-HIT_COIN = "Participants were assigned by a coin toss sequence."
-HIT_ENVELOPES = "Allocation was carried out by shuffling sealed opaque envelopes."
-HIT_PERMUTED_BLOCK = "We used a permuted block design for the allocation sequence."
-HIT_STRATIFIED = "The study employed stratified randomization based on clinical site."
-
-# Negative examples (should not match)
-MISS_RANDOMLY = "Participants were randomly selected from the registry."
-MISS_RANDOM_EFFECTS = "We fitted a random-effects model to the data."
-MISS_RANDOM_SAMPLING = "The study used a random sampling technique."
-
+# ────────────────────────────────────
+# Robust Tests for v1 (High Recall)
+# ────────────────────────────────────
 @pytest.mark.parametrize(
-    "text, expected_fns",
+    "text, should_match, test_id",
     [
-        (HIT_BLOCK, ["v1", "v2", "v4", "v5"]),
-        (HIT_COIN, ["v1", "v2"]),
-        (HIT_ENVELOPES, ["v1", "v2"]),
-        (HIT_PERMUTED_BLOCK, ["v1", "v2", "v4"]),
-        (HIT_STRATIFIED, ["v1", "v2", "v4"]),
+        ("Allocation sequence was computer-generated.", True, "v1_pos_computer_generated"),
+        ("Random number table was used for sequence generation.", True, "v1_pos_random_number_table"),
+        ("Patients were randomly assigned to groups (random sampling).", False, "v1_neg_random_sampling_trap"),
+        ("Random effects model was applied.", False, "v1_neg_random_effects_trap"),
     ],
 )
-def test_positive_hits(text, expected_fns):
-    """Test that the finder functions find matches in positive examples."""
-    for name, fn in RANDOM_SEQUENCE_GENERATION_FINDERS.items():
-        if name in expected_fns:
-            assert fn(text), f"{name} failed to find a match in: {text}"
-        else:
-            assert not fn(text), f"{name} unexpectedly found a match in: {text}"
+def test_find_random_sequence_generation_v1(text, should_match, test_id):
+    matches = find_random_sequence_generation_v1(text)
+    assert bool(matches) == should_match, f"v1 failed for {test_id}"
 
 
+# ────────────────────────────────────
+# Robust Tests for v2 (Cue + Rand Keyword)
+# ────────────────────────────────────
 @pytest.mark.parametrize(
-    "text", [MISS_RANDOMLY, MISS_RANDOM_EFFECTS, MISS_RANDOM_SAMPLING]
+    "text, should_match, test_id",
+    [
+        ("The allocation sequence was computer-generated.", True, "v2_pos_seq_computer_generated"),
+        ("Block randomization was computerised for allocation.", True, "v2_pos_block_allocation"),
+        ("Computer-generated list of numbers was prepared.", False, "v2_neg_no_rand_keyword"),
+        ("The allocation procedure was described, using random effects.", False, "v2_neg_trap_random_effects"),
+    ],
 )
-def test_negative_misses(text):
-    """Test that the finder functions do not find matches in negative examples."""
-    for name, fn in RANDOM_SEQUENCE_GENERATION_FINDERS.items():
-        assert not fn(text), f"{name} found a match in negative example: {text}"
+def test_find_random_sequence_generation_v2(text, should_match, test_id):
+    matches = find_random_sequence_generation_v2(text, window=4)
+    assert bool(matches) == should_match, f"v2 failed for {test_id}"
 
 
-# A more complex case for v3
-HEADING_EXAMPLE = """
-Randomisation
-The allocation sequence was computer-generated.
-"""
+# ────────────────────────────────────
+# Lighter Tests for v3 (Heading Block)
+# ────────────────────────────────────
+@pytest.mark.parametrize(
+    "text, should_match, test_id",
+    [
+        ("Randomisation:\nThe sequence was generated using a random number table.", True, "v3_pos_heading_block"),
+        ("Sequence Generation:\nComputer-generated randomisation list prepared.", True, "v3_pos_sequence_generation"),
+        ("Randomisation:\n(No method described)\n", False, "v3_neg_empty_block"),
+        ("The allocation was computer-generated.\nRandomisation: Not described.", False, "v3_neg_outside_block"),
+    ],
+)
+def test_find_random_sequence_generation_v3(text, should_match, test_id):
+    matches = find_random_sequence_generation_v3(text)
+    assert bool(matches) == should_match, f"v3 failed for {test_id}"
 
-def test_v3_with_heading():
-    """v3 should find a match when a heading is present."""
-    assert find_random_sequence_generation_v3(HEADING_EXAMPLE)
+
+# ────────────────────────────────────
+# Lighter Tests for v4 (Cue + Method Modifier)
+# ────────────────────────────────────
+@pytest.mark.parametrize(
+    "text, should_match, test_id",
+    [
+        ("Allocation sequence was computer-generated using block randomization.", True, "v4_pos_block_modifier"),
+        ("Sequence was computer-generated (no modifier present).", False, "v4_neg_no_modifier"),
+        ("Block method was described but no random sequence.", False, "v4_neg_block_only"),
+    ],
+)
+def test_find_random_sequence_generation_v4(text, should_match, test_id):
+    matches = find_random_sequence_generation_v4(text, window=6)
+    assert bool(matches) == should_match, f"v4 failed for {test_id}"
+
+
+# ────────────────────────────────────
+# Lighter Tests for v5 (Tight Template)
+# ────────────────────────────────────
+@pytest.mark.parametrize(
+    "text, should_match, test_id",
+    [
+        ("Allocation sequence computer-generated using block randomization (block size = 4).", True, "v5_pos_tight_template"),
+        ("The allocation sequence was computer-generated using block randomisation.", True, "v5_pos_variation"),
+        ("Computer-generated allocation list was used.", False, "v5_neg_loose_phrase"),
+        ("Block randomization without explicit allocation sequence.", False, "v5_neg_incomplete"),
+    ],
+)
+def test_find_random_sequence_generation_v5(text, should_match, test_id):
+    matches = find_random_sequence_generation_v5(text)
+    assert bool(matches) == should_match, f"v5 failed for {test_id}"

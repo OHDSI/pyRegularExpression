@@ -22,12 +22,16 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i, (a, b) in reversed(list(enumerate(spans))) if a < e <= b)
     return w_s, w_e
 
-ROLE_RE = re.compile(r"\b(?:statistician|data\s+manager|pharmacist|investigator|clinicians?|nurses?|research\s+assistant|independent|central\s+system|web[- ]?based\s+system|interactive\s+voice\s+response|ivr|iwrs)\b", re.I)
+ROLE_RE = re.compile(
+    r"\b(?:statisticians?|data\s+managers?|pharmacists?|investigators?|clinicians?|nurses?|research\s+assistants?|independent|central\s+system|web[- ]?based\s+system|interactive\s+voice\s+response|ivr|iwrs)\b",
+    re.I,
+)
 ACTION_RE = re.compile(r"\b(?:generated|prepared|created|enrolled|screened|assigned|allocated|registered|entered)\b", re.I)
-IMPLEMENT_CUE_RE = re.compile(r"\b(?:sequence\s+generated\s+by|generated\s+the\s+sequence|central\s+system\s+assigned|enrolled\s+participants|assigned\s+interventions?)\b", re.I)
+IMPLEMENT_CUE_RE = re.compile(r"\b(?:sequence\s+generated\s+by|generated\s+(?:the\s+)?sequence|(?:investigators?|clinicians?|nurses?)\s+enrolled|enrolled\s+(?:participants?|patients?)|(?:central\s+)?(?:system|web|ivr|iwrs)\s+assigned|assigned\s+(?:groups?|interventions?))\b", re.I)
 HEAD_RE = re.compile(r"(?m)^(?:randomi[sz]ation\s+implementation|implementation|assignment|enrollment)\s*[:\-]?\s*$", re.I)
 TRAP_RE = re.compile(r"\bimplemented\s+the\s+treatment|implemented\s+protocol\b", re.I)
-TIGHT_TEMPLATE_RE = re.compile(r"statistician\s+generated\s+[^\.\n]{0,80}?investigators?\s+enrolled[^\.\n]{0,80}?central\s+(?:web|ivr|iwrs)[^\.\n]{0,80}?assigned", re.I)
+TIGHT_TEMPLATE_RE = re.compile(r"statistician\s+generated\s+[^\.\n]{0,80}?(?:investigators?|clinicians?|nurses?)\s+enrolled[^\.\n]{0,80}?(?:central\s+)?(?:web|system|ivr|iwrs)[^\.\n]{0,80}?assigned", re.I)
+OBJECT_RE = re.compile(r"\b(?:sequence|list|allocation|randomi[sz]ation|participants?|groups?|interventions?)\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans = _token_spans(text)
@@ -46,13 +50,16 @@ def find_randomization_implementation_v1(text: str):
 def find_randomization_implementation_v2(text: str, window: int = 4):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    role_idx = {i for i, t in enumerate(tokens) if ROLE_RE.fullmatch(t)}
-    act_idx = {i for i, t in enumerate(tokens) if ACTION_RE.fullmatch(t)}
+    role_idx = {i for i, t in enumerate(tokens) if ROLE_RE.search(t)}
+    act_idx = {i for i, t in enumerate(tokens) if ACTION_RE.search(t)}
+    obj_idx = {i for i, t in enumerate(tokens) if OBJECT_RE.search(t)}
     out = []
     for r in role_idx:
-        if any(a for a in act_idx if abs(a - r) <= window):
-            w_s, w_e = _char_to_word(spans[r], spans)
-            out.append((w_s, w_e, tokens[r]))
+        for a in act_idx:
+            if abs(a - r) <= window:
+                if any(abs(o - a) <= window for o in obj_idx):
+                    w_s, w_e = _char_to_word(spans[r], spans)
+                    out.append((w_s, w_e, tokens[r]))
     return out
 
 def find_randomization_implementation_v3(text: str, block_chars: int = 500):

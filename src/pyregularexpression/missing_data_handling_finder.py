@@ -47,8 +47,8 @@ def find_missing_data_handling_v1(text: str):
 def find_missing_data_handling_v2(text: str, window: int = 4):
     spans=_token_spans(text)
     tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if MISS_CUE_RE.fullmatch(t)}
-    verb_idx={i for i,t in enumerate(tokens) if VERB_RE.fullmatch(t)}
+    cue_idx={i for i,t in enumerate(tokens) if MISS_CUE_RE.search(t)}
+    verb_idx={i for i,t in enumerate(tokens) if VERB_RE.search(t)}
     out=[]
     for c in cue_idx:
         if any(abs(v-c)<=window for v in verb_idx):
@@ -73,7 +73,7 @@ def find_missing_data_handling_v3(text: str, block_chars: int = 400):
 def find_missing_data_handling_v4(text: str, window: int = 6):
     spans=_token_spans(text)
     tokens=[text[s:e] for s,e in spans]
-    tech_idx={i for i,t in enumerate(tokens) if TECH_RE.fullmatch(t)}
+    tech_idx={i for i,t in enumerate(tokens) if TECH_RE.search(t)}
     matches=find_missing_data_handling_v2(text, window=window)
     out=[]
     for w_s,w_e,snip in matches:
