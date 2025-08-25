@@ -47,15 +47,28 @@ def find_statistical_analysis_primary_analysis_v1(text: str):
     return _collect(patterns, text)
 
 def find_statistical_analysis_primary_analysis_v2(text: str, window: int = 4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    test_idx={i for i,t in enumerate(tokens) if STAT_TEST_RE.fullmatch(t)}
-    prim_idx={i for i,t in enumerate(tokens) if PRIMARY_KEY_RE.fullmatch(t)}
-    out=[]
+    spans = _token_spans(text)
+    tokens = [text[s:e].strip('.,') for s, e in spans]
+    prim_idx = []
+    for m in PRIMARY_KEY_RE.finditer(text):
+        start_char = m.start()
+        idx = next(i for i, (s, e) in enumerate(spans) if s <= start_char < e)
+        prim_idx.append(idx)
+    test_idx = []
+    for m in STAT_TEST_RE.finditer(text):
+        start_char = m.start()
+        idx = next(i for i, (s, e) in enumerate(spans) if s <= start_char < e)
+        test_idx.append(idx)
+    out = []
     for p in prim_idx:
-        if any(abs(t-p)<=window for t in test_idx):
-            w_s,w_e=_char_to_word(spans[p],spans)
-            out.append((w_s,w_e,tokens[p]))
+        if any(abs(p - t) <= window for t in test_idx):
+            snippet_tokens = []
+            for m in PRIMARY_KEY_RE.finditer(text):
+                if m.start() == spans[p][0]:
+                    snippet_tokens = text[m.start():m.end()].split()
+                    break
+            out.append((p, p + len(snippet_tokens) - 1, ' '.join(snippet_tokens)))
+
     return out
 
 def find_statistical_analysis_primary_analysis_v3(text:str, block_chars:int=500):
@@ -72,15 +85,19 @@ def find_statistical_analysis_primary_analysis_v3(text:str, block_chars:int=500)
             out.append((w_s,w_e,m.group(0)))
     return out
 
-def find_statistical_analysis_primary_analysis_v4(text:str, window:int=6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    adj_idx={i for i,t in enumerate(tokens) if ADJUST_RE.fullmatch(t)}
-    matches=find_statistical_analysis_primary_analysis_v2(text,window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=a<=w_e+window for a in adj_idx):
-            out.append((w_s,w_e,snip))
+def find_statistical_analysis_primary_analysis_v4(text: str, window: int = 6):
+    spans = _token_spans(text)
+    tokens = [text[s:e].strip('.,') for s, e in spans]
+    adj_idx = []
+    for m in ADJUST_RE.finditer(text):
+        start_char = m.start()
+        token_pos = next(i for i, (s, e) in enumerate(spans) if s <= start_char < e)
+        adj_idx.append(token_pos)
+    matches = find_statistical_analysis_primary_analysis_v2(text, window)
+    out = []
+    for token_start, token_end, snippet in matches:
+        if any(token_start - window <= a <= token_end + window for a in adj_idx):
+            out.append((token_start, token_end, snippet))
     return out
 
 def find_statistical_analysis_primary_analysis_v5(text:str):

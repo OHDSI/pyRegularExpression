@@ -72,7 +72,7 @@ def find_study_period_v2(text: str, window: int = 5) -> List[Tuple[int, int, str
     """Tier 2 – date range + study-term cue within ±window tokens."""    
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    term_idx = {i for i, t in enumerate(tokens) if STUDY_TERM_RE.fullmatch(t)}
+    term_idx = {i for i, t in enumerate(tokens) if STUDY_TERM_RE.search(t)}
     out: List[Tuple[int, int, str]] = []
     for m in DATE_RANGE_RE.finditer(text):
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)

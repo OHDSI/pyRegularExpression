@@ -22,11 +22,11 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i,(a,b) in reversed(list(enumerate(spans))) if a<e<=b)
     return w_s, w_e
 
-TOOL_RE = re.compile(r"\b(?:ROBINS[- ]?I|ROB[- ]?2|Cochrane\s+risk\s+of\s+bias\s+tool|Newcastle[-–]Ottawa\s+Scale|NOS)\b", re.I)
+TOOL_RE = re.compile(r"\b(?:ROBINS[-– ]?I|ROB[-– ]?2|Cochrane\s+(?:risk\s+of\s+bias\s+)?tool|Newcastle[-–]Ottawa\s+Scale|NOS)\b", re.I)
 BIAS_CUE_RE = re.compile(r"\brisk\s+of\s+bias|quality\s+assessment\b", re.I)
 VERB_RE = re.compile(r"\b(?:assessed|evaluated|rated|scored|used|applied|performed)\b", re.I)
 RATING_RE = re.compile(r"\b(?:low|high|moderate|unclear)\b", re.I)
-HEAD_ROB_RE = re.compile(r"(?m)^(?:risk\s+of\s+bias|quality\s+assessment|study\s+quality)\s*[:\-]?\s*$", re.I)
+HEAD_ROB_RE = re.compile(r"(?im)^(risk\s+of\s+bias|quality\s+assessment|study\s+quality)\s*[:\-]?", re.I)
 TIGHT_TEMPLATE_RE = re.compile(r"risk\s+of\s+bias\s+was\s+assessed[^\.\n]{0,60}(?:ROBINS[- ]?I|ROB[- ]?2|Newcastle)", re.I)
 TRAP_RE = re.compile(r"\bbias\s+may\s+affect|selection\s+bias\b", re.I)
 
@@ -48,13 +48,13 @@ def find_risk_of_bias_assessment_v1(text: str):
 def find_risk_of_bias_assessment_v2(text: str, window: int = 4):
     spans=_token_spans(text)
     tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if BIAS_CUE_RE.fullmatch(t) or TOOL_RE.fullmatch(t)}
-    verb_idx={i for i,t in enumerate(tokens) if VERB_RE.fullmatch(t)}
     out=[]
-    for c in cue_idx:
-        if any(abs(v-c)<=window for v in verb_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+    for patt in [BIAS_CUE_RE, TOOL_RE]:
+        for m in patt.finditer(text):
+            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
+            if any(abs(v-w_s)<=window or abs(v-w_e)<=window 
+                   for v,t in enumerate(tokens) if VERB_RE.search(t)):
+                out.append((w_s,w_e,m.group(0)))
     return out
 
 def find_risk_of_bias_assessment_v3(text: str, block_chars: int = 400):
@@ -62,21 +62,25 @@ def find_risk_of_bias_assessment_v3(text: str, block_chars: int = 400):
     blocks=[(h.end(),min(len(text),h.end()+block_chars)) for h in HEAD_ROB_RE.finditer(text)]
     inside=lambda p:any(s<=p<e for s,e in blocks)
     out=[]
-    for m in BIAS_CUE_RE.finditer(text):
-        if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+    for patt in [BIAS_CUE_RE, TOOL_RE]:
+        for m in patt.finditer(text):
+            if inside(m.start()):
+                w_s,w_e=_char_to_word((m.start(),m.end()),spans)
+                out.append((w_s,w_e,m.group(0)))
     return out
 
 def find_risk_of_bias_assessment_v4(text: str, window: int = 6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    extra_idx={i for i,t in enumerate(tokens) if TOOL_RE.fullmatch(t) or RATING_RE.fullmatch(t)}
-    matches=find_risk_of_bias_assessment_v2(text, window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=k<=w_e+window for k in extra_idx):
-            out.append((w_s,w_e,snip))
+    spans = _token_spans(text)
+    extra_positions = set()
+    for patt in (TOOL_RE, RATING_RE):
+        for m in patt.finditer(text):
+            s_w, e_w = _char_to_word((m.start(), m.end()), spans)
+            extra_positions.update(range(s_w, e_w + 1))
+    matches = find_risk_of_bias_assessment_v2(text, window=window)
+    out = []
+    for w_s, w_e, snip in matches:
+        if any(w_s - window <= k <= w_e + window for k in extra_positions):
+            out.append((w_s, w_e, snip))
     return out
 
 def find_risk_of_bias_assessment_v5(text: str):

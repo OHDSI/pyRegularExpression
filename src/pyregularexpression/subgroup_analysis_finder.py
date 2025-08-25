@@ -45,15 +45,15 @@ def find_subgroup_analysis_v1(text: str):
     return _collect([SG_CUE_RE], text)
 
 def find_subgroup_analysis_v2(text: str, window: int = 4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if SG_CUE_RE.fullmatch(t)}
-    verb_idx={i for i,t in enumerate(tokens) if VERB_RE.fullmatch(t)}
-    out=[]
-    for c in cue_idx:
-        if any(abs(v-c)<=window for v in verb_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+    spans = _token_spans(text)
+    out = []
+    for m in SG_CUE_RE.finditer(text):
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        for v in VERB_RE.finditer(text):
+            v_s, v_e = _char_to_word((v.start(), v.end()), spans)
+            if abs(v_s - w_s) <= window or abs(v_e - w_e) <= window:
+                out.append((w_s, w_e, m.group(0)))
+                break
     return out
 
 def find_subgroup_analysis_v3(text: str, block_chars: int = 400):
