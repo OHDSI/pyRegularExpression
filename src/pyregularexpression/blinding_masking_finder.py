@@ -23,25 +23,18 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     return w_s, w_e
 
 # Regex assets
-BLIND_CUE_RE = re.compile(
-    r"\b(?:double|single|triple|quadruple|open[- ]label|masked|blinded|unblinded)\s*(?:-)?\s*(?:blind|blinded|mask(?:ed|ing))\b|\bopen[- ]label\b",
-    re.I,
-)
-
+BLIND_CUE_RE = re.compile(r"\b(?:double|single|triple|quadruple)\s*-?\s*blind\b|blinded?\b|unblinded\b|masked\b|blinding\b|open[- ]label\b", re.I)
 ROLE_RE = re.compile(
     r"\b(?:participants?|patients?|subjects?|investigators?|clinicians?|physicians?|assessors?|outcome\s+assessors?|data\s+collectors?|care\s+providers?)\b",
     re.I,
 )
-
 HEADING_BLIND_RE = re.compile(r"(?m)^(?:blinding|masking)\s*[:\-]?\s*$", re.I)
 TRAP_RE = re.compile(r"\bblinded\s+review|blind\s+analysis|blind\s+assessment\b", re.I)
-
 TIGHT_TEMPLATE_RE = re.compile(
     r"double[- ]blind\s+study[:\-]?\s+participants?\s+and\s+assessors?\s+(?:were|remained)\s+(?:unaware|masked)\b",
     re.I,
 )
-
-LEVEL_RE = re.compile(r"\b(?:double|single|triple|quadruple)\s*-?\s*blind\b", re.I)
+LEVEL_RE = re.compile(r"\b(?:double|triple|quadruple)\s*-?\s*blind\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans = _token_spans(text)
@@ -60,8 +53,8 @@ def find_blinding_masking_v1(text: str):
 def find_blinding_masking_v2(text: str, window: int = 4):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    role_idx = {i for i, t in enumerate(tokens) if ROLE_RE.fullmatch(t)}
-    cue_idx = {i for i, t in enumerate(tokens) if BLIND_CUE_RE.fullmatch(t)}
+    role_idx = {i for i, t in enumerate(tokens) if ROLE_RE.search(t)}
+    cue_idx = {i for i, t in enumerate(tokens) if BLIND_CUE_RE.search(t)}
     out = []
     for c in cue_idx:
         if any(r for r in role_idx if abs(r - c) <= window):
@@ -89,8 +82,8 @@ def find_blinding_masking_v4(text: str, window: int = 6):
     matches = find_blinding_masking_v2(text, window=window)
     out = []
     for w_s, w_e, snip in matches:
-        roles = {tokens[i].lower() for i in range(max(0, w_s-window), min(len(tokens), w_e+window)) if ROLE_RE.fullmatch(tokens[i])}
-        level_present = any(LEVEL_RE.fullmatch(tokens[i]) for i in range(max(0, w_s-window), min(len(tokens), w_e+window)))
+        roles = {tokens[i].lower() for i in range(max(0, w_s-window), min(len(tokens), w_e+window)) if ROLE_RE.search(tokens[i])}
+        level_present = any(LEVEL_RE.search(tokens[i]) for i in range(max(0, w_s-window), min(len(tokens), w_e+window)))
         if len(roles) >= 2 or level_present:
             out.append((w_s, w_e, snip))
     return out

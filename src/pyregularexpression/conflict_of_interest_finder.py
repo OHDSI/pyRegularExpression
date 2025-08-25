@@ -22,11 +22,11 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i,(a,b) in reversed(list(enumerate(spans))) if a<e<=b)
     return w_s, w_e
 
-COI_CUE_RE = re.compile(r"\b(?:conflicts?\s+of\s+interest|competing\s+interests?|disclosures?)\b", re.I)
-VERB_RE = re.compile(r"\b(?:declare[d]?|disclos(?:e|ed)|report(?:ed)?|state(?:d)?)\b", re.I)
+COI_CUE_RE = re.compile(r"\b(?:conflicts?\s+of\s+interest|competing\s+interests?|conflict\s+disclosures?)\b", re.I)
+VERB_RE = re.compile(r"\b(?:declare(?:s|d)?|disclose(?:s|d)?|report(?:s|ed)?|state(?:s|d)?)\b", re.I)
+HEAD_COI_RE = re.compile(r"(?m)^(?:conflicts?\s+of\s+interest|competing\s+interests?|disclosures?)\s*[:\-]?\s*$", re.I)
 COMPANY_RE = re.compile(r"\b(?:Pfizer|Novartis|Merck|Roche|AstraZeneca|Bayer|GSK|Sanofi|Johnson\s+&?\s*Johnson|Amgen|Lilly)\b", re.I)
 NO_COI_RE = re.compile(r"\bno\s+(?:conflicts?|competing\s+interests?)\b", re.I)
-HEAD_COI_RE = re.compile(r"(?m)^(?:conflicts?\s+of\s+interest|competing\s+interests?|disclosures?)\s*[:\-]?\s*$", re.I)
 TIGHT_TEMPLATE_RE = re.compile(r"authors?\s+declare\s+no\s+competing\s+interests", re.I)
 TRAP_RE = re.compile(r"\bconflict(?:ing)?\s+evidence|conflict\s+with\s+previous\s+studies\b", re.I)
 
@@ -46,37 +46,44 @@ def find_conflict_of_interest_v1(text: str):
     return _collect([COI_CUE_RE], text)
 
 def find_conflict_of_interest_v2(text: str, window: int = 4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if COI_CUE_RE.fullmatch(t)}
-    verb_idx={i for i,t in enumerate(tokens) if VERB_RE.fullmatch(t)}
-    out=[]
-    for c in cue_idx:
-        if any(abs(v-c)<=window for v in verb_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    out = []
+    for cue_match in COI_CUE_RE.finditer(text):
+        cue_w_s, cue_w_e = _char_to_word(cue_match.span(), spans)
+        for verb_match in VERB_RE.finditer(text):
+            verb_w_s, verb_w_e = _char_to_word(verb_match.span(), spans)
+            if verb_w_s > 0 and re.search(r"\bnot\b", tokens[verb_w_s - 1], re.I):
+                continue
+            if abs(verb_w_s - cue_w_s) <= window:
+                out.append((cue_w_s, cue_w_e, cue_match.group(0)))
+                break
     return out
 
 def find_conflict_of_interest_v3(text: str, block_chars: int = 400):
-    spans=_token_spans(text)
-    blocks=[(h.end(),min(len(text),h.end()+block_chars)) for h in HEAD_COI_RE.finditer(text)]
+    spans = _token_spans(text)
+    blocks=[(h.end(), min(len(text), h.end()+block_chars)) for h in HEAD_COI_RE.finditer(text)]
     inside=lambda p:any(s<=p<e for s,e in blocks)
     out=[]
-    for m in COI_CUE_RE.finditer(text):
-        if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+    for i,(s,e) in enumerate(spans):
+        if inside(s):
+            out.append((i,i,text[s:e]))
     return out
 
 def find_conflict_of_interest_v4(text: str, window: int = 6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    extra_idx={i for i,t in enumerate(tokens) if COMPANY_RE.fullmatch(t) or NO_COI_RE.fullmatch(t)}
-    matches=find_conflict_of_interest_v2(text, window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=k<=w_e+window for k in extra_idx):
-            out.append((w_s,w_e,snip))
+    spans = _token_spans(text)
+    v2_matches = find_conflict_of_interest_v2(text, window)
+    if not v2_matches:
+        return []
+    tech_positions = []
+    for pattern in (COMPANY_RE, NO_COI_RE):
+        for m in pattern.finditer(text):
+            word_idx = _char_to_word((m.start(), m.end()), spans)[0]
+            tech_positions.append(word_idx)
+    out = []
+    for w_s, w_e, snip in v2_matches:
+        if any(w_s - window <= pos <= w_e + window for pos in tech_positions):
+            out.append((w_s, w_e, snip))
     return out
 
 def find_conflict_of_interest_v5(text: str):

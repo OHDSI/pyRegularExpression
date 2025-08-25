@@ -24,13 +24,35 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     return w_s, w_e
 
 # regex assets
-MOD_CUE_RE = re.compile(r"\b(?:changed|amended|revised|modified|added)\s+(?:the\s+)?(?:primary|secondary)?\s*outcomes?\b", re.I)
-TEMPORAL_RE = re.compile(r"\b(?:after\s+(?:trial|study)\s+(?:start|began)|during\s+(?:the\s+)?trial|mid[- ]?study|\d+\s+(?:weeks?|months?|years?)\s+into\s+(?:the\s+)?trial)\b", re.I)
-REASON_RE = re.compile(r"\b(?:due\s+to|because\s+of|owing\s+to)\b", re.I)
-HEADING_CHG_RE = re.compile(r"(?m)^(?:outcome\s+changes?|changes\s+to\s+outcomes?|protocol\s+amendments?)\s*[:\-]?\s*$", re.I)
+
+HEADING_CHG_RE = re.compile(
+    r"(?m)^(?:[ \t]*outcome\s+changes?|changes\s+to\s+outcomes?|protocol\s+amendments?)\s*[:\-]?\s*$",
+    re.I
+)
 TRAP_RE = re.compile(r"\bchanges?\s+in\s+outcomes?|significant\s+change\s+in\s+outcome\s+values?\b", re.I)
 TIGHT_TEMPLATE_RE = re.compile(
-    r"\b(?:due\s+to|because\s+of|owing\s+to)\s+[^\.\n]{0,60}?primary\s+outcome\s+was\s+changed\s+from\s+[^\.\n]{0,40}?\s+to\s+[^\.\n]{0,40}?(?:mid[- ]?study|after\s+\d+\s+events)\b",
+    r"\b(?:due\s+to|because\s+of|owing\s+to)\s+[^\.\n]{0,60}?primary\s+outcome\s+was\s+changed\s+from\s+[^\.\n]{0,40}?\s+to\s+[^\.\n]{0,40}?\s*(?:mid[- ]?(?:study|way)|after\s+\d+\s+events)\b",
+    re.I,
+)
+TEMPORAL_RE = re.compile(
+    r"\b("
+    r"after|during|mid(?:[-\s])?study|midway|"
+    r"\d+\s+(weeks?|months?|years?)\s+into|"
+    r"(?:the\s+)?(trial|study)\s+(started|began)|"
+    r"(?:after|within)\s+\d+\s+(weeks?|months?|days?|years?)"
+    r")\b",
+    re.I,
+)
+MOD_CUE_RE = re.compile(
+    r"\b("
+    r"(?:changed|added|amended|revised|modified|updated|altered|introduced)\b"
+    r"(?:\s+(?:a|the|new|existing|additional)?\s*(?:primary|secondary|tertiary|outcomes?|measures?))*"
+    r"|(?:outcomes?\s+(?:were\s+)?(?:changed|amended|revised|modified|updated))"
+    r")\b",
+    re.I
+)
+REASON_RE = re.compile(
+    r"\b(due\s+to|because\s+of|owing\s+to|as\s+a\s+result\s+of|on\s+account\s+of)\b",
     re.I,
 )
 
@@ -39,9 +61,12 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     out: List[Tuple[int, int, str]] = []
     for patt in patterns:
         for m in patt.finditer(text):
-            if TRAP_RE.search(text[max(0, m.start()-30):m.end()+30]):
+            print(f"[DEBUG] Regex matched: '{m.group(0)}' at span {m.start()}–{m.end()}")
+            if TRAP_RE.search(text[max(0, m.start()-30):m.end()+30]):  # Trap detection
+                print("[DEBUG] Trap detected, skipping match:", m.group(0))
                 continue
             w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            print("[DEBUG] Adding match:", m.group(0))
             out.append((w_s, w_e, m.group(0)))
     return out
 
@@ -52,38 +77,49 @@ def find_changes_to_outcomes_v1(text: str):
 def find_changes_to_outcomes_v2(text: str, window: int = 4):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    temp_idx = {i for i,t in enumerate(tokens) if TEMPORAL_RE.fullmatch(t)}
-    mod_idx = {i for i,t in enumerate(tokens) if MOD_CUE_RE.fullmatch(t)}
-    out=[]
-    for i in mod_idx:
-        if any(t for t in temp_idx if abs(t-i)<=window):
-            w_s,w_e=_char_to_word(spans[i],spans)
-            out.append((w_s,w_e,tokens[i]))
+    mod_matches = [(m.start(), m.end(), m.group()) for m in MOD_CUE_RE.finditer(text)]
+    temp_matches = [(m.start(), m.end(), m.group()) for m in TEMPORAL_RE.finditer(text)]
+    out = []
+    for m_start, m_end, snippet in mod_matches:
+        w_s, w_e = _char_to_word((m_start, m_end), spans)
+        for t_start, t_end, _ in temp_matches:
+            t_w_s, t_w_e = _char_to_word((t_start, t_end), spans)
+            if max(w_s, t_w_s) - min(w_e, t_w_e) <= window:
+                out.append((w_s, w_e, snippet))
+                break
     return out
 
-def find_changes_to_outcomes_v3(text: str, block_chars: int = 400):
-    spans=_token_spans(text)
-    blocks=[]
+def find_changes_to_outcomes_v3(text: str, block_chars: int = 500):
+    spans = _token_spans(text)
+    blocks = []
     for h in HEADING_CHG_RE.finditer(text):
-        s=h.end(); e=min(len(text),s+block_chars)
-        blocks.append((s,e))
-    inside=lambda p: any(s<=p<e for s,e in blocks)
-    out=[]
+        s = h.end()
+        e = min(len(text), s + block_chars)
+        blocks.append((s, e))
+    out = []
     for m in MOD_CUE_RE.finditer(text):
-        if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+        for s, e in blocks:
+            if s <= m.start() < e:
+                w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+                out.append((w_s, w_e, m.group(0)))
+                break
     return out
 
-def find_changes_to_outcomes_v4(text: str, window: int = 6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    reason_idx={i for i,t in enumerate(tokens) if REASON_RE.fullmatch(t)}
-    matches=find_changes_to_outcomes_v2(text,window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(r for r in reason_idx if w_s-window<=r<=w_e+window):
-            out.append((w_s,w_e,snip))
+def find_changes_to_outcomes_v4(text: str, window: int = 10):
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    matches = find_changes_to_outcomes_v1(text)
+    reason_idx = set()
+    for m in REASON_RE.finditer(text):
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        reason_idx.update(range(w_s, w_e + 1))
+    out = []
+    for w_s, w_e, snip in matches:
+        mod_idx = w_s  # start token index of modification cue
+        start_idx = max(0, mod_idx - window)
+        end_idx = min(len(tokens), w_e + window + 1)
+        if any(r in range(start_idx, end_idx) for r in reason_idx):
+            out.append((w_s, w_e, snip))
     return out
 
 def find_changes_to_outcomes_v5(text: str):

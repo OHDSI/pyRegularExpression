@@ -22,13 +22,12 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i,(a,b) in reversed(list(enumerate(spans))) if a<e<=b)
     return w_s, w_e
 
-DATA_CUE_RE = re.compile(r"\b(?:data\s+sharing\s+statement|data\s+(?:will\s+be\s+)?shared|data\s+are\s+available|dataset\s+available|data\s+availability)\b", re.I)
+DATA_CUE_RE = re.compile(r"\b(?:data\s+sharing\s+statement|data\s+(?:will\s+be\s+)?shared|data\s+are\s+available|data\s+available|dataset\s+available|datasets?\s+deposited|data\s+availability)\b", re.I)
 VERB_RE = re.compile(r"\b(?:shared|available|provided|deposited|released|accessible)\b", re.I)
 REPO_RE = re.compile(r"\b(?:Dryad|Figshare|Zenodo|OSF|Open\s+Science\s+Framework|GitHub|Dataverse|ClinicalStudyDataRequest|Yoda)\b", re.I)
 REQUEST_RE = re.compile(r"\bupon\s+request|by\s+request|contact\s+the\s+author|reasonable\s+request\b", re.I)
-HEAD_DS_RE = re.compile(r"(?m)^(?:data\s+availability|availability\s+statement|data\s+sharing)\s*[:\-]?\s*$", re.I)
+HEAD_DS_RE = re.compile(r"(?m)^(?:data\s+availability|availability\s+statement|data\s+sharing)\s*[:\-]?.*", re.I)
 TIGHT_TEMPLATE_RE = re.compile(r"data\s+will\s+be\s+available[^\.\n]{0,60}(?:Dryad|Figshare|Zenodo|upon\s+request)", re.I)
-
 TRAP_RE = re.compile(r"\bopen\s+access\s+census\s+data|publicly\s+available\s+datasets?\s+were\s+used\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
@@ -47,32 +46,40 @@ def find_data_sharing_statement_v1(text: str):
     return _collect([DATA_CUE_RE, REPO_RE], text)
 
 def find_data_sharing_statement_v2(text: str, window: int = 4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if DATA_CUE_RE.fullmatch(t) or REPO_RE.fullmatch(t)}
-    verb_idx={i for i,t in enumerate(tokens) if VERB_RE.fullmatch(t)}
-    out=[]
-    for c in cue_idx:
-        if any(abs(v-c)<=window for v in verb_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    out = []
+    # search DATA_CUE_RE matches
+    for m in DATA_CUE_RE.finditer(text):
+        start, end = m.start(), m.end()
+        w_s, w_e = _char_to_word((start, end), spans)
+        token_window = range(max(0, w_s - window), min(len(tokens), w_e + window + 1))
+        if any(VERB_RE.fullmatch(tokens[i]) for i in token_window):
+            out.append((w_s, w_e, m.group(0)))
+    # search REPO_RE matches with nearby verb
+    for m in REPO_RE.finditer(text):
+        start, end = m.start(), m.end()
+        w_s, w_e = _char_to_word((start, end), spans)
+        token_window = range(max(0, w_s - window), min(len(tokens), w_e + window + 1))
+        if any(VERB_RE.fullmatch(tokens[i]) for i in token_window):
+            out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_data_sharing_statement_v3(text: str, block_chars: int = 400):
-    spans=_token_spans(text)
-    blocks=[(h.end(),min(len(text),h.end()+block_chars)) for h in HEAD_DS_RE.finditer(text)]
-    inside=lambda p:any(s<=p<e for s,e in blocks)
-    out=[]
+    spans = _token_spans(text)
+    blocks = [(h.start(), min(len(text), h.start() + block_chars)) for h in HEAD_DS_RE.finditer(text)]
+    inside = lambda p: any(s <= p < e for s, e in blocks)
+    out = []
     for m in DATA_CUE_RE.finditer(text):
         if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_data_sharing_statement_v4(text: str, window: int = 6):
     spans=_token_spans(text)
     tokens=[text[s:e] for s,e in spans]
-    mech_idx={i for i,t in enumerate(tokens) if REPO_RE.fullmatch(t) or REQUEST_RE.fullmatch(t)}
+    mech_idx={i for i,t in enumerate(tokens) if REPO_RE.search(t) or REQUEST_RE.search(t)}
     matches=find_data_sharing_statement_v2(text, window=window)
     out=[]
     for w_s,w_e,snip in matches:

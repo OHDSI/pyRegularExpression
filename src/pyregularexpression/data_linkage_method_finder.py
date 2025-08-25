@@ -24,10 +24,9 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
 
 LINK_CUE_RE   = re.compile(r"\b(?:linkage|linked|linking|match(?:ed|ing)?)\b", re.I)
 OBJ_RE        = re.compile(r"\b(?:records?|data(?:sets?)?|files?|registries|registry|databases?)\b", re.I)
-METHOD_RE     = re.compile(r"\b(?:probabilistic|deterministic|exact\s+match|fuzzy\s+match|hashed|token[- ]?based|master\s+patient\s+index|MPI)\b", re.I)
-HEAD_LINK_RE  = re.compile(r"(?m)^(?:data\s+linkage|record\s+linkage|data\s+matching|linkage\s+method)\s*[:\-]?\s*$", re.I)
-TIGHT_TEMPLATE_RE = re.compile(r"probabilistic(?:ally)?\s+linked\s+.+?registry|deterministic\s+match", re.I)
-
+METHOD_RE = re.compile(r"\b(?:probabilistic(?:ally)?|deterministic(?:ally)?|exact\s+match|fuzzy\s+match|hashed|token[- ]?based|master\s+patient\s+index|MPI)\b",re.I)
+HEAD_LINK_RE  = re.compile(r"(?mi)^(?:data\s+linkage|record\s+linkage|data\s+matching|linkage\s+method)\b.*", re.I)
+TIGHT_TEMPLATE_RE = re.compile(r"(?:probabilistic(?:ally)?\s+linked\s+.+?registry|deterministic(?:ally)?\s+match(?:ed)?)", re.I)
 TRAP_RE = re.compile(r"\blink\s+between|link\s+to\s+outcome|hyperlink|website\s+link\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
@@ -58,14 +57,17 @@ def find_data_linkage_method_v2(text: str, window: int = 3):
     return out
 
 def find_data_linkage_method_v3(text: str, block_chars: int = 400):
-    spans=_token_spans(text)
-    blocks=[(h.end(),min(len(text),h.end()+block_chars)) for h in HEAD_LINK_RE.finditer(text)]
-    inside=lambda p:any(s<=p<e for s,e in blocks)
-    out=[]
+    spans = _token_spans(text)
+    blocks = [
+        (h.start(), min(len(text), h.end() + block_chars))
+        for h in HEAD_LINK_RE.finditer(text)
+    ]
+    inside = lambda p: any(s <= p < e for s, e in blocks)
+    out = []
     for m in LINK_CUE_RE.finditer(text):
         if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_data_linkage_method_v4(text: str, window: int = 6):

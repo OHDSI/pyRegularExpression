@@ -36,6 +36,7 @@ DEMOGRAPHIC_TERM_RE = re.compile(
 )
 
 AGE_NUMERIC_RE = re.compile(r"\b\d{1,3}\s*(?:years?|yrs?)\b", re.I)
+
 AGE_COMPARISON_RE = re.compile(r"\b(?:aged?|age)\s*(?:[<>]=?|at\s+least|under|over|≥|≤)\s*\d{1,3}\b", re.I)
 
 GATING_VERB_RE = re.compile(r"\b(?:eligible|includ(?:e|ed|ing|s)|included\s+only|must\s+be|had\s+to\s+be|restricted\s+to|limited\s+to|enrol(?:led|lment)|enrolled)\b", re.I)
@@ -67,7 +68,7 @@ def find_demographic_restriction_v2(text: str, window: int = 5) -> List[Tuple[in
     """Tier 2: demographic cue WITH a gating verb inside ±``window`` tokens."""    
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    gv_idx = {i for i, t in enumerate(tokens) if GATING_VERB_RE.fullmatch(t)}
+    gv_idx = {i for i, t in enumerate(tokens) if GATING_VERB_RE.search(t)}
     out: List[Tuple[int, int, str]] = []
     for patt in (DEMOGRAPHIC_TERM_RE, AGE_COMPARISON_RE, AGE_NUMERIC_RE):
         for m in patt.finditer(text):

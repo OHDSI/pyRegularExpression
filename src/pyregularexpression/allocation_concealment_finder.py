@@ -24,7 +24,7 @@ def _char_to_word(span:Tuple[int,int], spans:Sequence[Tuple[int,int]]):
 
 CONCEAL_CUE_RE = re.compile(r"\b(?:opaque\s+sealed\s+envelopes?|sealed\s+opaque\s+envelopes?|sequentially\s+numbered\s+opaque\s+envelopes?|central(?:ised|ized)?\s+randomi[sz]ation|central\s+allocation|telephone\s+randomi[sz]ation|web[- ]?based\s+randomi[sz]ation|pharmacy[- ]?controlled|allocation\s+concealment)\b", re.I)
 RAND_KEY_RE = re.compile(r"\b(?:allocation|sequence|randomi[sz]ed|randomi[sz]ation)\b", re.I)
-DESC_RE = re.compile(r"\b(?:central(?:ised|ized)?|telephone|web[- ]?based|pharmacy[- ]?controlled|sequentially\s+numbered)\b", re.I)
+DESC_RE = re.compile(r"\b(?:central(?:ised|ized)?|telephone|web[- ]?based|pharmacy[- ]?controlled|sequentially|numbered)\b", re.I)
 HEADING_CONC_RE = re.compile(r"(?m)^(?:allocation\s+concealment|concealment|randomi[sz]ation)\s*[:\-]?\s*$", re.I)
 TRAP_RE = re.compile(r"\bconcealed\s+allocation\s+was\s+not\s+possible|blinded\s+assessors\b", re.I)
 TIGHT_TEMPLATE_RE = re.compile(r"assignments?\s+in\s+sequentially\s+numbered\s+opaque\s+envelopes?\s+(?:ensured|achieved)\s+allocation\s+concealment", re.I)
@@ -43,16 +43,21 @@ def _collect(patterns:Sequence[re.Pattern[str]], text:str):
 def find_allocation_concealment_v1(text:str):
     return _collect([CONCEAL_CUE_RE], text)
 
-def find_allocation_concealment_v2(text:str, window:int=4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    rand_idx={i for i,t in enumerate(tokens) if RAND_KEY_RE.fullmatch(t)}
-    conc_idx={i for i,t in enumerate(tokens) if CONCEAL_CUE_RE.fullmatch(t)}
-    out=[]
-    for i in conc_idx:
-        if any(r for r in rand_idx if abs(r-i)<=window):
-            w_s,w_e=_char_to_word(spans[i],spans)
-            out.append((w_s,w_e,tokens[i]))
+
+def find_allocation_concealment_v2(text:str, window:int=6):
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s,e in spans]
+
+    conc_matches = list(CONCEAL_CUE_RE.finditer(text))
+    rand_matches = list(RAND_KEY_RE.finditer(text))
+    rand_idx = [_char_to_word((m.start(), m.end()), spans)[0] for m in rand_matches]
+
+    out = []
+    for m in conc_matches:
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        # Check if any randomization keyword is within ±window tokens of the concealment cue
+        if any(w_s - window <= r <= w_e + window for r in rand_idx):
+            out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_allocation_concealment_v3(text:str, block_chars:int=400):

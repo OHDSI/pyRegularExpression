@@ -24,9 +24,9 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
 
 DOSE_CUE_RE = re.compile(r"\b(?:dose[- ]?response|dose[- ]?effect|exposure[- ]?response|e[- ]?r\s+relationship|trend\s+test|log[- ]linear|restricted\s+cubic\s+spline|p[- ]?trend|per[- ]\d+\s*[a-zA-Z]*|per[- ]increment)\b", re.I)
 VERB_RE = re.compile(r"\b(?:observed|showed|tested|assessed|evaluated|fitted|fit|model(?:led)?|examined|analysed|analyzed)\b", re.I)
-TREND_KEY_RE = re.compile(r"\b(?:p[- ]?trend|trend\s+test|log[- ]linear|spline|restricted\s+cubic\s+spline|dose[- ]?response|dose[- ]?effect)\b", re.I)
-HEAD_DR_RE = re.compile(r"(?m)^(?:dose[- ]?response|exposure[- ]?response|trend\s+analysis|dose[- ]?effect)\s*[:\-]?\s*$", re.I)
-TIGHT_TEMPLATE_RE = re.compile(r"dose[- ]?response[^\.\n]{0,60}p[- ]?trend", re.I)
+TREND_KEY_RE = re.compile(r"\b(?:p[- ]?trend|trend\s+test|log[- ]linear|spline|restricted\s+cubic\s+spline)\b", re.I)
+HEAD_DR_RE = re.compile(r"(?m)^(?:dose[- ]?response|exposure[- ]?response|trend\s+analysis|dose[- ]?effect)\s*[:\-]?\s*$", re.I | re.UNICODE)
+TIGHT_TEMPLATE_RE = re.compile(r"dose[- ]?response[^\.\n]{0,60}p[- ]?trend\s*<\s*0\.?\d+", re.I)
 TRAP_RE = re.compile(r"\breceived\s+\d+\s+doses?|two\s+possible\s+doses|different\s+dose\s+groups\s+were\s+assigned\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
@@ -58,7 +58,7 @@ def find_dose_response_analysis_v2(text: str, window:int=4):
 
 def find_dose_response_analysis_v3(text:str, block_chars:int=400):
     spans=_token_spans(text)
-    blocks=[(h.end(),min(len(text),h.end()+block_chars)) for h in HEAD_DR_RE.finditer(text)]
+    blocks = [(h.start(), min(len(text), h.end()+block_chars)) for h in HEAD_DR_RE.finditer(text)]
     inside=lambda p:any(s<=p<e for s,e in blocks)
     out=[]
     for m in DOSE_CUE_RE.finditer(text):
@@ -70,7 +70,7 @@ def find_dose_response_analysis_v3(text:str, block_chars:int=400):
 def find_dose_response_analysis_v4(text:str, window:int=6):
     spans=_token_spans(text)
     tokens=[text[s:e] for s,e in spans]
-    key_idx={i for i,t in enumerate(tokens) if TREND_KEY_RE.fullmatch(t)}
+    key_idx={i for i,t in enumerate(tokens) if TREND_KEY_RE.search(t)}
     matches=find_dose_response_analysis_v2(text,window)
     out=[]
     for w_s,w_e,snip in matches:
