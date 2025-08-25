@@ -34,7 +34,7 @@ DEFINE_VERB_RE = re.compile(r"\b(?:defined|set|assigned|taken|established|determ
 
 EQUAL_SYNTAX_RE = re.compile(r"=", re.I)
 
-HEADING_INDEX_RE = re.compile(r"(?m)^(?:index\s+date|baseline\s+date|time\s+zero)\s*[:\-]?\s*$", re.I)
+HEADING_INDEX_RE = re.compile(r"(?m)^(?:index\s+date|baseline\s+date|time\s+zero)\b.*$", re.I)
 
 TRAP_RE = re.compile(r"\b(?:index\s+(?:case|test|patient|event)|follow(?:ed|ing)?\s+from|data\s+entry)\b", re.I)
 
@@ -63,7 +63,7 @@ def find_index_date_v2(text: str, window: int = 5):
     """Tier 2 – INDEX_TERM within ±window tokens of defining verb."""
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    verb_idx = {i for i, t in enumerate(tokens) if DEFINE_VERB_RE.fullmatch(t)}
+    verb_idx = {i for i, t in enumerate(tokens) if DEFINE_VERB_RE.fullmatch(t.rstrip('.;,'))}
     out: List[Tuple[int, int, str]] = []
     for m in INDEX_TERM_RE.finditer(text):
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
@@ -76,7 +76,7 @@ def find_index_date_v3(text: str, block_chars: int = 300):
     token_spans = _token_spans(text)
     blocks: List[Tuple[int, int]] = []
     for h in HEADING_INDEX_RE.finditer(text):
-        start = h.end()
+        start = h.start()
         nxt_blank = text.find("\n\n", start)
         end = nxt_blank if 0 <= nxt_blank - start <= block_chars else start + block_chars
         blocks.append((start, end))
@@ -90,16 +90,16 @@ def find_index_date_v3(text: str, block_chars: int = 300):
     return out
 
 def find_index_date_v4(text: str, window: int = 5):
-    """Tier 4 – v2 + explicit '=' or defining verb in same clause, excludes traps."""
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    matches = find_index_date_v2(text, window=window)
+    index_matches = [(m.start(), m.end(), m.group(0)) for m in INDEX_TERM_RE.finditer(text)]
     out: List[Tuple[int, int, str]] = []
-    for w_s, w_e, snippet in matches:
-        clause_text = " ".join(tokens[max(0, w_s - 3): w_e + 6])
-        if EQUAL_SYNTAX_RE.search(clause_text) or DEFINE_VERB_RE.search(clause_text):
-            if not TRAP_RE.search(clause_text):
-                out.append((w_s, w_e, snippet))
+    for start, end, snippet in index_matches:
+        w_s, w_e = _char_span_to_word_span((start, end), token_spans)
+        context = tokens[max(0, w_s - window): w_e + window + 1]
+        context_text = " ".join(context)        
+        if (EQUAL_SYNTAX_RE.search(context_text) or DEFINE_VERB_RE.search(context_text)) and not TRAP_RE.search(context_text):
+            out.append((w_s, w_e, snippet))
     return out
 
 def find_index_date_v5(text: str):

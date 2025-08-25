@@ -46,41 +46,46 @@ def find_harms_adverse_event_v1(text: str):
     return _collect([pattern], text)
 
 def find_harms_adverse_event_v2(text: str, window: int = 4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if AE_CUE_RE.fullmatch(t)}
-    num_idx={i for i,t in enumerate(tokens) if NUM_TOKEN_RE.fullmatch(t)}
-    grp_idx={i for i,t in enumerate(tokens) if GROUP_RE.fullmatch(t)}
-    out=[]
-    for c in cue_idx:
-        if any(abs(n-c)<=window for n in num_idx) and any(abs(g-c)<=window for g in grp_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    cue_matches = [m for m in AE_CUE_RE.finditer(text)]
+    num_matches = [m for m in re.finditer(NUM_RE, text)]
+    grp_matches = [m for m in GROUP_RE.finditer(text)]
+    out = []
+    cue_idx = [_char_to_word((m.start(), m.end()), spans) for m in cue_matches]
+    num_idx = [_char_to_word((m.start(), m.end()), spans) for m in num_matches]
+    grp_idx = [_char_to_word((m.start(), m.end()), spans) for m in grp_matches]
+    for c_start, c_end in cue_idx:
+        if any(abs(n_start - c_start) <= window or abs(n_end - c_end) <= window for n_start, n_end in num_idx) and \
+           any(abs(g_start - c_start) <= window or abs(g_end - c_end) <= window for g_start, g_end in grp_idx):
+            snippet = " ".join(tokens[c_start:c_end+1])
+            out.append((c_start, c_end, snippet))
     return out
 
 def find_harms_adverse_event_v3(text: str, block_chars: int = 400):
-    spans=_token_spans(text)
-    blocks=[]
+    spans = _token_spans(text)
+    blocks = []
     for h in HEAD_AE_RE.finditer(text):
-        s=h.end(); e=min(len(text),s+block_chars)
-        blocks.append((s,e))
-    inside=lambda p:any(s<=p<e for s,e in blocks)
-    out=[]
+        s = h.start()
+        e = min(len(text), s + block_chars)
+        blocks.append((s, e))
+    out = []
     for m in AE_CUE_RE.finditer(text):
-        if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+        if any(s <= m.start() < e for s, e in blocks):
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_harms_adverse_event_v4(text: str, window: int = 6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    sev_idx={i for i,t in enumerate(tokens) if SEVERITY_RE.fullmatch(t)}
-    matches=find_harms_adverse_event_v2(text, window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=s<=w_e+window for s in sev_idx):
-            out.append((w_s,w_e,snip))
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    sev_matches = [m for m in SEVERITY_RE.finditer(text)]
+    sev_idx = [_char_to_word((m.start(), m.end()), spans) for m in sev_matches]
+    matches = find_harms_adverse_event_v2(text, window=window)
+    out = []
+    for w_s, w_e, snip in matches:
+        if any(abs(w_s - s_start) <= window or abs(w_e - s_end) <= window for s_start, s_end in sev_idx):
+            out.append((w_s, w_e, snip))
     return out
 
 def find_harms_adverse_event_v5(text: str):

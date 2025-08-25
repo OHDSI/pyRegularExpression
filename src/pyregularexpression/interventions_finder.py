@@ -24,9 +24,9 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
 
 ARM_CUE_RE = re.compile(r"\b(?:intervention|treatment|experimental|control|placebo|comparison|standard\s+care|usual\s+care)\s+(?:arm|group)\b", re.I)
 ACTION_RE = re.compile(r"\b(?:received|were\s+given|was\s+given|treated\s+with|administered|assigned\s+to|underwent|received\s+a|underwent\s+a)\b", re.I)
-AGENT_RE = re.compile(r"\b(?:placebo|dose|dosage|mg|g|mcg|units?|tablet|capsule|surgery|procedure|program|therapy|exercise|aerobic|drug|medication|vaccine|intervention|treatment)\b", re.I)
+AGENT_RE = re.compile(r"\b(?:placebo|dose|dosage|mg|g|mcg|units?|tablet|capsule|surgery|procedure|program|therapy|exercise|aerobic|drug|medication|vaccine)\b", re.I)
 CONTROL_CUE_RE = re.compile(r"\b(?:control\s+group|placebo\s+group|usual\s+care|standard\s+care|sham)\b", re.I)
-HEADING_INT_RE = re.compile(r"(?m)^(?:interventions?|treatments?|experimental\s+design|study\s+arms?)\s*[:\-]?\s*$", re.I)
+HEADING_INT_RE = re.compile(r"(?m)^(?:interventions?|treatments?|experimental\s+design|study\s+arms?)\s*[:\-]?\s*(.*)$", re.I)
 TRAP_RE = re.compile(r"\bpolicy\s+interventions?|government\s+interventions?|intervention\s+strategies\s+were\s+discussed\b", re.I)
 TIGHT_TEMPLATE_RE = re.compile(r"\bexperimental\s+arm\s+[^\.\n]{0,120}?\breceived\b[^\.\n]{0,120}?(?:control|placebo|usual\s+care)\s+arm\s+[^\.\n]{0,120}?\b(?:received|continued)\b", re.I)
 
@@ -48,20 +48,27 @@ def find_interventions_v1(text: str):
 def find_interventions_v2(text: str, window: int = 4):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    act_idx = {i for i, t in enumerate(tokens) if ACTION_RE.fullmatch(t) or AGENT_RE.fullmatch(t)}
-    arm_idx = {i for i, t in enumerate(tokens) if ARM_CUE_RE.fullmatch(t)}
     out = []
-    for i in arm_idx:
-        if any(a for a in act_idx if abs(a - i) <= window):
-            w_s, w_e = _char_to_word(spans[i], spans)
-            out.append((w_s, w_e, tokens[i]))
+    visited = set() 
+    for i, t in enumerate(tokens):
+        start = max(0, i - window)
+        end = min(len(tokens), i + window + 1)
+        snippet_tokens = tokens[start:end]
+        snippet_text = " ".join(snippet_tokens)
+        if (ARM_CUE_RE.search(snippet_text) and
+            (ACTION_RE.search(snippet_text) or AGENT_RE.search(snippet_text))):
+            key = (start, end-1)
+            if key not in visited:
+                visited.add(key)
+                out.append((start, end-1, snippet_text))
     return out
 
 def find_interventions_v3(text: str, block_chars: int = 400):
     spans = _token_spans(text)
     blocks = []
     for h in HEADING_INT_RE.finditer(text):
-        s = h.end(); e = min(len(text), s + block_chars)
+        s = h.start(1)  
+        e = min(len(text), s + block_chars)
         blocks.append((s, e))
     inside = lambda p: any(s <= p < e for s, e in blocks)
     out = []
@@ -74,12 +81,12 @@ def find_interventions_v3(text: str, block_chars: int = 400):
 def find_interventions_v4(text: str, window: int = 6):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    ctrl_idx = {i for i, t in enumerate(tokens) if CONTROL_CUE_RE.fullmatch(t)}
     matches = find_interventions_v2(text, window=window)
     out = []
-    for w_s, w_e, snip in matches:
-        if any(c for c in ctrl_idx if w_s - window <= c <= w_e + window):
-            out.append((w_s, w_e, snip))
+    for start, end, snippet in matches:
+        context = " ".join(tokens[max(0, start - window): min(len(tokens), end + window + 1)])
+        if CONTROL_CUE_RE.search(context):
+            out.append((start, end, snippet))
     return out
 
 def find_interventions_v5(text: str):

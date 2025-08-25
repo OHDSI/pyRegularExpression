@@ -27,9 +27,8 @@ NUM_TOKEN_RE = re.compile(r"^\d{1,4}$")
 LOSS_CUE_RE = re.compile(r"\b(?:lost\s+to\s+follow[- ]up|withdrew|withdrawn|dropped?\s+out|drop[- ]outs?|excluded\s+from\s+analysis|missing\s+data)\b", re.I)
 STAGE_RE = re.compile(r"\b(?:follow[- ]up|analysis|study\s+period|treatment|intervention)\b", re.I)
 REASON_RE = re.compile(r"\b(?:due\s+to|because\s+of|adverse\s+event|side\s+effects?|pregnancy)\b", re.I)
-HEAD_LOSS_RE = re.compile(r"(?m)^(?:losses?\s+and\s+exclusions?|drop[- ]?outs?|participant\s+flow)\s*[:\-]?\s*$", re.I)
+HEAD_LOSS_RE = re.compile(r"(?m)^(?:losses?\s+and\s+exclusions?|drop[- ]?outs?|participant\s+flow)\s*[:\-]?.*$", re.I)
 TIGHT_TEMPLATE_RE = re.compile(rf"{NUM_RE}\s+lost\s+to\s+follow[- ]up,?\s+{NUM_RE}\s+withdrew\s+(?:due\s+to|because\s+of)\s+[^\.\n]+", re.I)
-
 TRAP_RE = re.compile(r"\bexcluded\s+during\s+screening|lost\s+samples?|specimens\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
@@ -44,45 +43,50 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     return out
 
 def find_losses_exclusion_v1(text: str):
-    pattern=re.compile(rf"{LOSS_CUE_RE.pattern}[^\n]{{0,15}}{NUM_RE}", re.I)
+    pattern = re.compile(rf"{NUM_RE}[^\n]{{0,15}}{LOSS_CUE_RE.pattern}", re.I)
     return _collect([pattern], text)
 
 def find_losses_exclusion_v2(text: str, window: int = 4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if LOSS_CUE_RE.fullmatch(t)}
-    num_idx={i for i,t in enumerate(tokens) if NUM_TOKEN_RE.fullmatch(t)}
-    stage_idx={i for i,t in enumerate(tokens) if STAGE_RE.fullmatch(t)}
-    out=[]
-    for c in cue_idx:
-        if any(abs(n-c)<=window for n in num_idx) and any(abs(s-c)<=window for s in stage_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s,e in spans]
+    out = []
+    for m in LOSS_CUE_RE.finditer(text):
+        cue_start, cue_end = m.start(), m.end()
+        w_s_cue, w_e_cue = _char_to_word((cue_start, cue_end), spans)
+        start_idx = max(0, w_s_cue - window)
+        end_idx = min(len(tokens), w_e_cue + window + 1)
+        snippet = " ".join(tokens[start_idx:end_idx])
+        if re.search(NUM_RE, snippet) and STAGE_RE.search(snippet):
+            out.append((start_idx, end_idx-1, snippet))
     return out
 
 def find_losses_exclusion_v3(text: str, block_chars: int = 500):
-    spans=_token_spans(text)
-    blocks=[]
+    spans = _token_spans(text)
+    blocks = []
     for h in HEAD_LOSS_RE.finditer(text):
-        s=h.end(); e=min(len(text),s+block_chars)
-        blocks.append((s,e))
-    inside=lambda p:any(s<=p<e for s,e in blocks)
-    out=[]
+        s = h.start()  # include heading itself
+        e = min(len(text), s + block_chars)
+        blocks.append((s, e))
+    inside = lambda p: any(s <= p < e for s, e in blocks)
+    out = []
     for m in LOSS_CUE_RE.finditer(text):
         if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_losses_exclusion_v4(text: str, window: int = 6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    reason_idx={i for i,t in enumerate(tokens) if REASON_RE.fullmatch(t)}
-    matches=find_losses_exclusion_v2(text, window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=r<=w_e+window for r in reason_idx):
-            out.append((w_s,w_e,snip))
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s,e in spans]
+    out = []
+    for m in LOSS_CUE_RE.finditer(text):
+        cue_start, cue_end = m.start(), m.end()
+        w_s_cue, w_e_cue = _char_to_word((cue_start, cue_end), spans)
+        start_idx = max(0, w_s_cue - window)
+        end_idx = min(len(tokens), w_e_cue + window + 1)
+        snippet = " ".join(tokens[start_idx:end_idx])
+        if re.search(NUM_RE, snippet) and REASON_RE.search(snippet):
+            out.append((start_idx, end_idx-1, snippet))
     return out
 
 def find_losses_exclusion_v5(text: str):

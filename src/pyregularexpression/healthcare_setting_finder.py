@@ -39,33 +39,17 @@ def _char_to_word(span: Tuple[int, int], tokens: Sequence[Tuple[int, int]]):
 # ─────────────────────────────
 # 1. Regex assets
 # ─────────────────────────────
-FACILITY_RE = re.compile(
-    r"\b(?:inpatient|outpatient|ambulatory|primary\s+care|secondary\s+care|tertiary\s+care|emergency\s+department|ed|er|icu|intensive\s+care(?:\s+unit)?|clinic|clinics|hospitals?(?:\s+based)?|ward|community\s+pharmacy|settings)\b",  # Corrected backslashes
-    re.I,
-)
+FACILITY_RE = re.compile(r"\b(hospitals?|medical centers?|healthcare centers?|(?:outpatient|primary care|community|specialty)\s+clinics?|ICU(?:s| wards?)?|intensive care units?|ICU wards?|wards?|pharmacies|pharmacy|community pharmacy|inpatients?|outpatients?)\b", re.I)
 
-# CONTEXT_RE = re.compile(r"\b(?:setting|clinic|care|unit|hospital|environment|data|patients?)\b", re.I)
-# CONTEXT_RE = re.compile(r"\b(?:setting|clinic|care|unit|hospital|environment|data|patients?|ward|healthcare|inpatient|outpatient|facility|medical|hospitalization|treatment)\b", re.I)
-CONTEXT_RE = re.compile(r"\b(?:setting|settings|clinic|care|unit|hospital|environment|data|patients?|ward|healthcare|inpatient|outpatient|facility|medical|hospitalization|treatment|caregiver|medical\scare)\b", re.I)
+CONTEXT_RE = re.compile(r"^(?:setting|settings|clinic|care|unit|environment|data|patients?|ward|healthcare|facility|medical|hospitalization|treatment|caregiver)[\.,;:]?$", re.I)
 
+QUALIFIER_RE = re.compile(r"\b(?:primary|secondary|tertiary|academic|community|teaching|urban|rural|outpatient|ambulatory|regional|suburban|specialist|private|public)\b", re.I)
 
-#QUALIFIER_RE = re.compile(r"\b(?:primary|secondary|tertiary|academic|community|teaching|urban|rural)\b", re.I)
-QUALIFIER_RE = re.compile(r"\b(?:primary|secondary|tertiary|academic|community|teaching|urban|rural|outpatient|ambulatory|regional|suburban|specialist|private|public|emergency)\b", re.I)
-
-#HEADING_SET_RE = re.compile(r"(?m)^(?:setting|healthcare\s+setting|study\s+setting)\s*[:\-]?\s*$", re.I)
-#HEADING_SET_RE = re.compile(r"(?m)^(?:setting|healthcare\s+setting|study\s+setting|study\s+design|research\s+setting|care\s+setting|clinical\s+setting|service\s+setting)\s*[:\-]?\s*$", re.I)
-HEADING_SET_RE = re.compile(
-    r"(?m)^(?:setting|healthcare\s+setting|study\s+setting|study\s+design|research\s+setting|care\s+setting|clinical\s+setting|service\s+setting)\s*[:\-\.]?\s*",
-    re.I
-)
-
+HEADING_SET_RE = re.compile(r"(?m)^(?:setting|healthcare\s+setting|study\s+setting|study\s+design|research\s+setting|care\s+setting|clinical\s+setting|service\s+setting)\s*[:\-]?\s*.*$", re.I)
 
 GENERIC_TRAP_RE = re.compile(r"real[- ]?world\s+setting|setting\s+of\s+care", re.I)
 
-TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:(?:conducted|performed|carried\s+out)\s+in|admitted\s+to|data\s+(?:were\s+extracted\s+)?from|recruited\s+(?:from|in|at))\s+[^\.\\n]{0,80}(?:inpatient|outpatient|primary\s+care|icu|clinic|hospital|emergency\s+department)\b",
-    re.I,
-)
+TIGHT_TEMPLATE_RE = re.compile(r"(?:(?:conducted|performed|carried\s+out)\s+in|data\s+from)\s+[^.\n]{0,80}?(?:inpatient\s+setting|outpatient\s+setting|primary[-\s]+care\s+clinics?|icu(?:\s+inpatient\s+setting)?|hospital(?:\s+ward)?)\b", re.I)
 
 # ─────────────────────────────
 # 2. Helper
@@ -96,7 +80,7 @@ def find_healthcare_setting_v2(text: str, window: int = 3):
     text = normalize_text(text)  # Normalize the text first
     tok_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in tok_spans]
-    ctx_idx = {i for i, t in enumerate(tokens) if CONTEXT_RE.search(t)}
+    ctx_idx = {i for i, t in enumerate(tokens) if CONTEXT_RE.fullmatch(t)}
     out = []
     for m in FACILITY_RE.finditer(text):
         w_s, w_e = _char_to_word((m.start(), m.end()), tok_spans)
@@ -104,49 +88,34 @@ def find_healthcare_setting_v2(text: str, window: int = 3):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-
-def find_healthcare_setting_v3(text: str, block_chars: int = 250):
-    text = normalize_text(text)  # Normalize the text first
-    tok_spans = _token_spans(text)
+def find_healthcare_setting_v3(text: str):
+    text_norm = normalize_text(text)
+    print("Normalized text:", text_norm)
     blocks = []
-    for h in HEADING_SET_RE.finditer(text):
-        s = h.end()
-        nxt = text.find("\n\n", s)
-        e = nxt if 0 <= nxt - s <= block_chars else s + block_chars
-        blocks.append((s, e))
-    inside = lambda p: any(s <= p < e for s, e in blocks)
-    out = []
-    for m in FACILITY_RE.finditer(text):
-        if inside(m.start()):
-            w_s, w_e = _char_to_word((m.start(), m.end()), tok_spans)
-            out.append((w_s, w_e, m.group(0)))
-    return out
-
-
+    for match in re.finditer(r"(healthcare setting|study setting)\s*:\s*(.*?)(?:\n\s*\n|$)", text_norm, re.I | re.S):
+        blocks.append((match.start(), match.end()))
+    print("Found blocks:", blocks)
+    matches = []
+    for start, end in blocks:
+        block_text = text_norm[start:end]
+        for fac in FACILITY_RE.finditer(block_text):
+            matches.append(fac)
+    return matches
 
 def find_healthcare_setting_v4(text: str, window: int = 4):
     """Tier 4 – v2 + qualifier token near facility term."""
     text = normalize_text(text)  # Normalize the text first
     tok_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in tok_spans]
-    
     # Create a set of indices for tokens that are qualifiers
-    qual_idx = {i for i, t in enumerate(tokens) if QUALIFIER_RE.search(t)}
-    
+    qual_idx = {i for i, t in enumerate(tokens) if QUALIFIER_RE.fullmatch(t)}
     # Get matches from v2 (facility term + context)
     matches = find_healthcare_setting_v2(text, window=window)
-    
-    # Store results
     out = []
-    
-    # Loop over the matches from v2
     for w_s, w_e, snip in matches:
-        # Check if any of the qualifiers are within the window before or after the matched span
         if any(q for q in qual_idx if w_s - window <= q <= w_e + window):
             out.append((w_s, w_e, snip))
-    
     return out
-
 
 def find_healthcare_setting_v5(text: str):
     """Tier 5 – tight template."""

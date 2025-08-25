@@ -49,8 +49,8 @@ def find_event_adjudication_v1(text: str):
 def find_event_adjudication_v2(text: str, window: int = 5):
     spans=_token_spans(text)
     tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if ADJ_CUE_RE.fullmatch(t)}
-    obj_idx={i for i,t in enumerate(tokens) if OBJ_RE.fullmatch(t)}
+    cue_idx={i for i,t in enumerate(tokens) if ADJ_CUE_RE.search(t)}
+    obj_idx={i for i,t in enumerate(tokens) if OBJ_RE.search(t)}
     out=[]
     for c in cue_idx:
         if any(abs(o-c)<=window for o in obj_idx):

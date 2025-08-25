@@ -60,38 +60,15 @@ def split_text_by_filter(
 
     for finder in finder_funcs:
         for w_start, _w_end, hit in finder(text):
-            # Validate the token-span from the finder. For single-token matches,
-            # w_start and _w_end will be equal (inclusive index).
-            # Validate the token-span from the finder. It must be a valid slice,
-            # and both start and end must be within the bounds of the token list.
-            if not (0 <= w_start < len(token_spans) and w_start <= _w_end and _w_end < len(token_spans)):
+            if w_start >= len(token_spans):
                 continue
-
-            # Sentence containing the start of the match
-            start_char_pos = token_spans[w_start][0]
-            start_sent_idx = bisect.bisect_right(sent_start_chars, start_char_pos) - 1
-
-            # Sentence containing the end of the match. Based on the finder
-            # implementations, `_w_end` is an *inclusive* index.
-            end_tok_idx = _w_end
-            if end_tok_idx >= len(token_spans):
-                end_tok_idx = len(token_spans) - 1
-
-            end_char_pos = token_spans[end_tok_idx][0]
-            end_sent_idx = bisect.bisect_right(sent_start_chars, end_char_pos) - 1
-
-            # Add sentences to the matched set if the indices are valid
-            if 0 <= start_sent_idx < len(sentences):
-                # Ensure end_sent_idx is also valid, otherwise default to start_sent_idx
-                if not (0 <= end_sent_idx < len(sentences)):
-                    end_sent_idx = start_sent_idx
-
-                lo = max(0, start_sent_idx - window_back)
-                hi = min(len(sentences), end_sent_idx + window_fwd + 1)
-
+            char_pos = token_spans[w_start][0]
+            sent_idx = bisect.bisect_right(sent_start_chars, char_pos) - 1
+            if 0 <= sent_idx < len(sentences):
+                lo = max(0, sent_idx - window_back)
+                hi = min(len(sentences), sent_idx + window_fwd + 1)
                 matched_idx.update(range(lo, hi))
-                # The hit is associated with the sentence where it starts.
-                hits.append((start_sent_idx, finder.__name__, hit))
+                hits.append((sent_idx, finder.__name__, hit))
 
     mask = [i in matched_idx for i in range(len(sentences))]
     matched_ix = sorted(matched_idx)
