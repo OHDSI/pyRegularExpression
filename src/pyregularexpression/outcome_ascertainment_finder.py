@@ -41,7 +41,7 @@ HEADING_ASCERT_RE = re.compile(r"(?m)^(?:outcome\s+ascertainment|event\s+ascerta
 TRAP_RE = re.compile(r"\bascertainment\s+bias\b", re.I)
 
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:events?|outcomes?)\s+(?:were\s+)?(?:ascertained|confirmed|verified|identified)\s+(?:via|through|from|using)\s+[^\.\n]{0,80}",
+    r"(?:events?|outcomes?)\s+(?:were\s+)?(?:ascertained|confirmed|verified|identified)\s+(?:via|through|from|using|by)\s+[^\.\n]{0,80}",
     re.I,
 )
 
@@ -77,11 +77,18 @@ def find_outcome_ascertainment_v3(text: str, block_chars: int = 400):
     inside=lambda p:any(s<=p<e for s,e in blocks)
     return [_char_span_to_word_span((m.start(),m.end()),token_spans)+(m.group(0),) for m in ASCERTAIN_VERB_RE.finditer(text) if inside(m.start())]
 
-def find_outcome_ascertainment_v4(text: str, window:int=6):
-    token_spans=_token_spans(text); tokens=[text[s:e] for s,e in token_spans]
-    key_idx={i for i,t in enumerate(tokens) if OUTCOME_KEYWORD_RE.fullmatch(t) or DATASET_TERM_RE.fullmatch(t)}
-    matches=find_outcome_ascertainment_v2(text,window)
-    return [match for match in matches if any(k for k in key_idx if match[0]-window<=k<=match[1]+window)]
+def find_outcome_ascertainment_v4(text: str, window: int = 6):
+    token_spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in token_spans]
+    matches = find_outcome_ascertainment_v2(text, window)
+    out = []
+    for w_s, w_e, snippet in matches:
+        start = max(0, w_s - window)
+        end = min(len(tokens) - 1, w_e + window)
+        window_text = " ".join(tokens[start:end+1])
+        if OUTCOME_KEYWORD_RE.search(window_text) or DATASET_TERM_RE.search(window_text):
+            out.append((w_s, w_e, snippet))
+    return out
 
 def find_outcome_ascertainment_v5(text: str):
     return _collect([TIGHT_TEMPLATE_RE], text)

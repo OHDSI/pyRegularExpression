@@ -31,15 +31,15 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
 # ─────────────────────────────
 OBJ_CUE_RE = re.compile(
     r"\b(?:the\s+aim\s+of\s+this\s+study|we\s+aim(?:ed)?\s+to|our\s+objective\s+was|the\s+objective\s+of\s+this\s+study|this\s+study\s+seeks\s+to|purpose\s+of\s+this\s+study|to\s+determine\s+whether)\b",
-    re.I,
+    re.I | re.UNICODE,
 )
-HYP_CUE_RE = re.compile(r"\bwe\s+hypothesi(?:s|z)(?:ed)?\s+that\b", re.I)
-STUDY_TOKEN_RE = re.compile(r"\b(?:this\s+study|the\s+study)\b", re.I)
+HYP_CUE_RE = re.compile(r"\bwe\s+hypothes(?:is|iz)(?:e|ed)?\s+that\b", re.I)
+STUDY_TOKEN_RE = re.compile(r"\b(?:study|this study)\b", re.I)
 HEADING_OBJ_RE = re.compile(r"(?m)^(?:objectives?|aims?|purpose|study\s+aims?)\s*[:\-]?\s*$", re.I)
 TRAP_RE = re.compile(r"\bobjective\s+(?:measurement|value)|aim\s+for|objective\s+function\b", re.I)
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:the\s+objective\s+of\s+this\s+study\s+was|we\s+aim(?:ed)?\s+to|we\s+hypothes(?:is|iz)ed\s+that)[^\.\n]{10,200}",
-    re.I,
+    r"(?:(?:the\s+objective\s+of\s+this\s+study\s+was\s+to)|(?:we\s+aim(?:ed)?\s+to\s+(?!study\b))|(?:we\s+hypothes(?:is|iz)(?:e|ed)?\s+that))",
+    re.I | re.DOTALL
 )
 
 # ─────────────────────────────
@@ -67,7 +67,7 @@ def find_objective_hypothesis_v2(text: str, window: int = 3):
     """Tier 2 – cue + verb tense OR hypothesis phrase."""
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    verb_re = re.compile(r"\b(?:was|were|is|are|aim(?:ed)?)\b", re.I)
+    verb_re = re.compile(r"\b(?:was|were|is|are|aim(?:ed)?|hypothes(?:is|iz)(?:e|ed)?)\b", re.I)
     verb_idx = {i for i, t in enumerate(tokens) if verb_re.fullmatch(t)}
     out = []
     for m in OBJ_CUE_RE.finditer(text):
@@ -99,7 +99,7 @@ def find_objective_hypothesis_v4(text: str, window: int = 4):
     """Tier 4 – v2 + explicit study token near cue."""
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    study_idx = {i for i, t in enumerate(tokens) if STUDY_TOKEN_RE.fullmatch(t)}
+    study_idx = {i for i, t in enumerate(tokens) if STUDY_TOKEN_RE.search(t)}
     matches = find_objective_hypothesis_v2(text, window=window)
     out = []
     for w_s, w_e, snip in matches:

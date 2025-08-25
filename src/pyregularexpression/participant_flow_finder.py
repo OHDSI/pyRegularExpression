@@ -31,7 +31,6 @@ TRAP_RE = re.compile(r"\btotal\s+of\s+\d+\b", re.I)
 TIGHT_TEMPLATE_RE = re.compile(rf"{NUM_RE}\s+randomi[sz]ed\s*\(\s*{NUM_RE}\s+[^,]+,\s*{NUM_RE}\s+[^\)]+\)\s*;\s*{NUM_RE}\s+completed", re.I)
 NUM_TOKEN_RE = re.compile(r"^\d{1,4}$")
 
-
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans = _token_spans(text)
     out: List[Tuple[int,int,str]] = []
@@ -47,17 +46,20 @@ def find_participant_flow_v1(text:str):
     pattern = re.compile(rf"{FLOW_CUE_RE.pattern}[^\n]{{0,15}}{NUM_RE}", re.I)
     return _collect([pattern], text)
 
-def find_participant_flow_v2(text:str, window:int=4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if FLOW_CUE_RE.fullmatch(t)}
-    num_idx={i for i,t in enumerate(tokens) if NUM_TOKEN_RE.fullmatch(t)}
-    grp_idx={i for i,t in enumerate(tokens) if GROUP_RE.fullmatch(t) or STAGE_RE.fullmatch(t)}
-    out=[]
+def find_participant_flow_v2(text: str, window: int = 4):
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    cue_idx = {i for i, t in enumerate(tokens) if FLOW_CUE_RE.fullmatch(t)}
+    num_idx = {i for i, t in enumerate(tokens) if NUM_TOKEN_RE.fullmatch(t)}
+    grp_idx = {i for i, t in enumerate(tokens) if GROUP_RE.fullmatch(t) or STAGE_RE.fullmatch(t)}
+    out = []
     for c in cue_idx:
-        if any(abs(n-c)<=window for n in num_idx) and any(abs(g-c)<=window for g in grp_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+        nearby_nums = [n for n in num_idx if abs(n - c) <= window]
+        for n in nearby_nums:
+            if any(abs(g - n) <= window or abs(g - c) <= window for g in grp_idx):
+                w_s, w_e = _char_to_word(spans[c], spans)
+                out.append((w_s, w_e, tokens[c]))
+                break  
     return out
 
 def find_participant_flow_v3(text:str, block_chars:int=600):

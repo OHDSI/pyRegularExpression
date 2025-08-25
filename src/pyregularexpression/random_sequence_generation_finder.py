@@ -23,11 +23,14 @@ def _char_to_word(span:Tuple[int,int], spans:Sequence[Tuple[int,int]]):
     return w_s, w_e
 
 GEN_CUE_RE = re.compile(r"\b(?:computer[- ]?generated|computerised|computerized|random\s+number\s+table|coin\s+toss|shuffled\s+(?:opaque\s+)?envelopes?|sealed\s+opaque\s+envelopes?|permuted\s+block|block\s+randomi[sz]ation|stratified\s+randomi[sz]ation)\b", re.I)
-RAND_KEY_RE = re.compile(r"\b(?:randomi[sz]ation|randomi[sz]ed|allocation|sequence|list)\b", re.I)
-METHOD_MOD_RE = re.compile(r"\b(?:block|blocks?|permuted|stratified)\b", re.I)
+RAND_KEY_RE = re.compile(r"\b(?:randomi[sz]ation|randomi[sz]ed|allocation|sequence)\b", re.I)
+METHOD_MOD_RE = re.compile(r"\b(?:block|blocks?|permuted|stratified|opaque\s+envelopes?|shuffled)\b", re.I)
 HEADING_RAND_RE = re.compile(r"(?m)^(?:randomi[sz]ation|sequence\s+generation|allocation\s+sequence)\s*[:\-]?\s*$", re.I)
 TRAP_RE = re.compile(r"\brandom(?:ly)?\s+(?:assigned|selected)|random\s+sampling|random\s+effects?\b", re.I)
-TIGHT_TEMPLATE_RE = re.compile(r"allocation\s+sequence.*?computer[- ]?generated.*?block\s+randomi[sz]ation", re.I)
+TIGHT_TEMPLATE_RE = re.compile(
+    r"(?:the\s+)?allocation\s+sequence(?:\s+was)?\s+computer[- ]?generated(?:\s+\w+){0,10}?\s+block\s+randomi[sz]ation",
+    re.I,
+)
 
 def _collect(patterns:Sequence[re.Pattern[str]], text:str):
     spans=_token_spans(text)
@@ -43,20 +46,16 @@ def _collect(patterns:Sequence[re.Pattern[str]], text:str):
 def find_random_sequence_generation_v1(text:str):
     return _collect([GEN_CUE_RE], text)
 
-def find_random_sequence_generation_v2(text:str, window:int=80): # window in chars
+def find_random_sequence_generation_v2(text:str, window:int=4):
     spans=_token_spans(text)
-    gen_matches = list(GEN_CUE_RE.finditer(text))
-    key_matches = list(RAND_KEY_RE.finditer(text))
+    tokens=[text[s:e] for s,e in spans]
+    key_idx={i for i,t in enumerate(tokens) if RAND_KEY_RE.search(t)}
+    gen_idx={i for i,t in enumerate(tokens) if GEN_CUE_RE.search(t)}
     out=[]
-    for g in gen_matches:
-        if TRAP_RE.search(text[max(0,g.start()-25):g.end()+25]):
-            continue
-        for k in key_matches:
-            # check if the spans are close
-            if abs(g.start() - k.end()) < window or abs(k.start() - g.end()) < window:
-                w_s,w_e=_char_to_word((g.start(),g.end()),spans)
-                out.append((w_s,w_e,g.group(0)))
-                break # avoid duplicates
+    for i in gen_idx:
+        if any(k for k in key_idx if abs(k-i)<=window):
+            w_s,w_e=_char_to_word(spans[i],spans)
+            out.append((w_s,w_e,tokens[i]))
     return out
 
 def find_random_sequence_generation_v3(text:str, block_chars:int=400):
@@ -73,19 +72,15 @@ def find_random_sequence_generation_v3(text:str, block_chars:int=400):
             out.append((w_s,w_e,m.group(0)))
     return out
 
-def find_random_sequence_generation_v4(text:str, window:int=80): # window in chars
+def find_random_sequence_generation_v4(text:str, window:int=6):
     spans=_token_spans(text)
-    mod_matches = list(METHOD_MOD_RE.finditer(text))
-    v2_matches = find_random_sequence_generation_v2(text) # uses window=80 by default
-    out = []
-    for w_s, w_e, snip in v2_matches:
-        v2_start_char = spans[w_s][0]
-        v2_end_char = spans[w_e][1]
-        for m in mod_matches:
-            # check if the v2 match and the modifier match are close
-            if abs(v2_start_char - m.end()) < window or abs(m.start() - v2_end_char) < window:
-                out.append((w_s, w_e, snip))
-                break
+    tokens=[text[s:e] for s,e in spans]
+    mod_idx={i for i,t in enumerate(tokens) if METHOD_MOD_RE.fullmatch(t)}
+    matches=find_random_sequence_generation_v2(text, window=window)
+    out=[]
+    for w_s,w_e,snip in matches:
+        if any(m for m in mod_idx if w_s-window<=m<=w_e+window):
+            out.append((w_s,w_e,snip))
     return out
 
 def find_random_sequence_generation_v5(text:str):

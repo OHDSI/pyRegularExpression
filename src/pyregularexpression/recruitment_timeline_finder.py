@@ -22,21 +22,19 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i,(a,b) in reversed(list(enumerate(spans))) if a<e<=b)
     return w_s,w_e
 
-MONTHS = r"Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?"
+MONTHS = r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+DATE_RANGE_RE = rf"(?:\b\d{{4}}\b|\b{MONTHS}\s+\d{{4}})\s*(?:–|-|—|to|through|until)\s*(?:\b\d{{4}}\b|\b{MONTHS}\s+\d{{4}})"
 YEAR = r"(?:19|20)\d{2}"
 DATE_RE = rf"(?:{MONTHS}\s+{YEAR}|{YEAR})"
-DATE_RANGE_RE = rf"{DATE_RE}\s*(?:–|-|to|through|until)\s*{DATE_RE}"
 
 ENROL_CUE_RE = re.compile(r"\b(?:recruit(?:ed|ment)|enrol(?:led|ment)|included|study\s+period|data\s+collection|patients?\s+were\s+enrolled)\b", re.I)
-FOLLOW_CUE_RE = re.compile(r"\bfollow(?:ed)?\s*(?:up|for)?\b", re.I)
-HEAD_RECRUIT_RE = re.compile(r"(?m)^(?:recruitment|enrolment|study\s+period|timeline)\s*[:\-]?\s*$", re.I)
-TIGHT_TEMPLATE_RE = re.compile(rf"enrol(?:led|ment)\s+{DATE_RANGE_RE};?\s+[^\.\n]{{0,40}}follow(?:ed|\s+up)\s+\d+\s+(?:months?|years?)", re.I)
-
+FOLLOW_CUE_RE = re.compile(r"\bfollow(?:-?up|ed|ed\s+up|for)\b", re.I)
+HEAD_RECRUIT_RE = re.compile(r"(?m)^(?:recruitment|enrolment|study\s+period|timeline)\s*[:\-]?", re.I)
+TIGHT_TEMPLATE_RE = re.compile(rf"(?:enrol(?:led|ment)|enrolled)\s+{DATE_RANGE_RE};?\s+(?:each\s+)?(?:patients\s+were\s+)?(?:followed|follow\s*-?up\s*(?:was|for)?)\s+\d+\s+(?:months?|years?)", re.I)
 TRAP_RE = re.compile(r"\bwas\s+challenging|difficult\s+to\s+recruit\b", re.I)
 
 DATE_TOKEN = re.compile(rf"^(?:{MONTHS}|{YEAR})$", re.I)
-RANGE_SEP = re.compile(r"^(?:–|-|to|through|until)$")
-
+RANGE_SEP = re.compile(r"^(?:–|—|-|to|through|until)$")
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans = _token_spans(text)
@@ -49,54 +47,55 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-
 def find_recruitment_timeline_v1(text: str):
     pattern = re.compile(rf"{ENROL_CUE_RE.pattern}[^\n]{{0,20}}(?:{DATE_RANGE_RE}|{DATE_RE})", re.I)
     return _collect([pattern], text)
 
-
 def find_recruitment_timeline_v2(text: str, window: int = 6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if ENROL_CUE_RE.fullmatch(t)}
-    sep_idx={i for i,t in enumerate(tokens) if RANGE_SEP.fullmatch(t)}
-    out=[]
-    for c in cue_idx:
-        if any(abs(s-c)<=window for s in sep_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+    spans = _token_spans(text)
+    cue_matches = [_char_to_word((m.start(), m.end()), spans)
+                   for m in ENROL_CUE_RE.finditer(text)]
+    out = []
+    for w_s, w_e in cue_matches:
+        snippet = text[spans[w_s][0]: spans[min(len(spans)-1, w_e+window)][1]]
+        if re.search(DATE_RANGE_RE, snippet):
+            out.append((w_s, w_e, snippet))
     return out
-
 
 def find_recruitment_timeline_v3(text: str, block_chars: int = 500):
-    spans=_token_spans(text)
-    blocks=[]
+    spans = _token_spans(text)
+    blocks = []
     for h in HEAD_RECRUIT_RE.finditer(text):
-        s=h.end(); e=min(len(text),s+block_chars)
-        blocks.append((s,e))
-    inside=lambda p:any(s<=p<e for s,e in blocks)
-    out=[]
+        s = h.end()
+        e = min(len(text), s + block_chars)
+        blocks.append((s, e))
+    inside = lambda p: any(s <= p < e for s, e in blocks)
+    out = []
     for m in ENROL_CUE_RE.finditer(text):
         if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+            for s, e in blocks:
+                if s <= m.start() < e:
+                    block_text = text[s:e]
+                    if re.search(DATE_RANGE_RE, block_text) or re.search(DATE_RE, block_text):
+                        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+                        out.append((w_s, w_e, m.group(0)))
     return out
-
 
 def find_recruitment_timeline_v4(text: str, window: int = 8):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    follow_idx={i for i,t in enumerate(tokens) if FOLLOW_CUE_RE.fullmatch(t)}
-    matches=find_recruitment_timeline_v2(text, window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=f<=w_e+window for f in follow_idx):
-            out.append((w_s,w_e,snip))
+    spans = _token_spans(text)
+    matches = find_recruitment_timeline_v2(text, window=window)
+    out = []
+    for w_s, w_e, snip in matches:
+        snippet = text[spans[w_s][0]: spans[w_e][1] + 80]
+        if FOLLOW_CUE_RE.search(snippet):
+            out.append((w_s, w_e, snip))
     return out
 
-
 def find_recruitment_timeline_v5(text: str):
-    return _collect([TIGHT_TEMPLATE_RE], text)
+    matches = []
+    for m in TIGHT_TEMPLATE_RE.finditer(text):
+        matches.append((m.start(), m.end(), m.group(0)))
+    return matches
 
 RECRUITMENT_TIMELINE_FINDERS: Dict[str,Callable[[str],List[Tuple[int,int,str]]]] = {
     "v1":find_recruitment_timeline_v1,

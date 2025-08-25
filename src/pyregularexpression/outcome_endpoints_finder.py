@@ -22,7 +22,10 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i, (a, b) in reversed(list(enumerate(spans))) if a < e <= b)
     return w_s, w_e
 
-OUTCOME_CUE_RE = re.compile(r"\b(?:primary|secondary)\s+(?:outcome|endpoint)\b|\b(?:outcome\s+measures?|endpoint\s+defined\s+as)\b", re.I)
+OUTCOME_CUE_RE = re.compile(
+    r"\b(?:primary|secondary)\s+outcomes?\b|\b(?:primary|secondary)\s+endpoints?\b|"
+    r"\boutcomes?\s+measures?\b|\bendpoints?\s+defined\s+as\b", re.I
+)
 MEASURE_VERB_RE = re.compile(r"\b(?:was|were|measured|assessed|defined|evaluated|collected)\b", re.I)
 TIME_CUE_RE = re.compile(r"\bat\s+\d+\s*(?:days?|weeks?|months?|years?)\b", re.I)
 HEADING_OUT_RE = re.compile(r"(?m)^(?:outcomes?|endpoints?|outcome\s+measures?)\s*[:\-]?\s*$", re.I)
@@ -49,12 +52,12 @@ def find_outcome_endpoints_v2(text: str, window: int = 4):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
     verb_idx = {i for i, t in enumerate(tokens) if MEASURE_VERB_RE.fullmatch(t) or TIME_CUE_RE.fullmatch(t)}
-    cue_idx = {i for i, t in enumerate(tokens) if OUTCOME_CUE_RE.fullmatch(t)}
     out = []
-    for i in cue_idx:
-        if any(v for v in verb_idx if abs(v - i) <= window):
-            w_s, w_e = _char_to_word(spans[i], spans)
-            out.append((w_s, w_e, tokens[i]))
+    for m in OUTCOME_CUE_RE.finditer(text):
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        if any(v for v in verb_idx if w_s - window <= v <= w_e + window):
+            snippet = " ".join(tokens[w_s:w_e+1])
+            out.append((w_s, w_e, snippet))
     return out
 
 def find_outcome_endpoints_v3(text: str, block_chars: int = 500):
@@ -71,16 +74,20 @@ def find_outcome_endpoints_v3(text: str, block_chars: int = 500):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_outcome_endpoints_v4(text: str, window: int = 6):
+def find_outcome_endpoints_v4(text: str, window: int = 10):
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    prim_idx = {i for i, t in enumerate(tokens) if PRIMARY_RE.fullmatch(t)}
-    sec_idx = {i for i, t in enumerate(tokens) if SECONDARY_RE.fullmatch(t)}
-    matches = find_outcome_endpoints_v2(text, window=window)
     out = []
-    for w_s, w_e, snip in matches:
-        if any(p for p in prim_idx if w_s - window <= p <= w_e + window) and any(s for s in sec_idx if w_s - window <= s <= w_e + window):
-            out.append((w_s, w_e, snip))
+    prim_matches = list(PRIMARY_RE.finditer(text))
+    sec_matches = list(SECONDARY_RE.finditer(text))
+    for p in prim_matches:
+        for s in sec_matches:
+            w_s, _ = _char_to_word((p.start(), p.end()), spans)
+            _, w_e = _char_to_word((s.start(), s.end()), spans)
+            if w_e >= w_s:  
+                snippet = " ".join(tokens[w_s:w_e+1])
+                out.append((w_s, w_e, snippet))
+                break 
     return out
 
 def find_outcome_endpoints_v5(text: str):
