@@ -22,12 +22,11 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i,(a,b) in reversed(list(enumerate(spans))) if a<e<=b)
     return w_s, w_e
 
-GEN_CUE_RE = re.compile(r"\b(?:generalizability|generalise|generalize|external\s+validity|applicability|apply\s+only\s+to)\b", re.I)
+GEN_CUE_RE = re.compile(r"\b(?:generalizability|generalizable|generalise|generalize|external\s+validity|applicability|apply\s+only\s+to|interpreted\s+with\s+caution)\b",re.I)
 MODAL_RE = re.compile(r"\b(?:may|might|could|should|caution|care\s+should\s+be)\b", re.I)
 POP_QUAL_RE = re.compile(r"\b(?:older\s+adults?|women|men|children|single\s+center|tertiary\s+care|high[- ]income|low[- ]income|specific\s+population|hospitalised|asian|european|us|multi[- ]center)\b", re.I)
 HEAD_GEN_RE = re.compile(r"(?m)^(?:generalizability|external\s+validity|applicability)\s*[:\-]?\s*$", re.I)
 TIGHT_TEMPLATE_RE = re.compile(r"findings?\s+may\s+not\s+generaliz(?:e|e)\s+to\s+[^\".\n]{3,60}", re.I)
-
 TRAP_RE = re.compile(r"\bmodel\s+is\s+generalizable|algorithm\s+generalizability\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
@@ -46,15 +45,16 @@ def find_generalizability_v1(text: str):
     return _collect([GEN_CUE_RE], text)
 
 def find_generalizability_v2(text: str, window: int = 4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if GEN_CUE_RE.fullmatch(t)}
-    mod_idx={i for i,t in enumerate(tokens) if MODAL_RE.fullmatch(t)}
+    import string
+    spans = _token_spans(text)
+    tokens = [text[s:e].strip(string.punctuation) for s, e in spans]  # strip punctuation
+    cue_idx = {i for i,t in enumerate(tokens) if GEN_CUE_RE.fullmatch(t)}
+    mod_idx = {i for i,t in enumerate(tokens) if MODAL_RE.fullmatch(t)}
     out=[]
     for c in cue_idx:
-        if any(abs(m-c)<=window for m in mod_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+        if any(abs(m-c) <= window for m in mod_idx):
+            w_s, w_e = _char_to_word(spans[c], spans)
+            out.append((w_s, w_e, tokens[c]))
     return out
 
 def find_generalizability_v3(text: str, block_chars: int = 400):
@@ -72,14 +72,15 @@ def find_generalizability_v3(text: str, block_chars: int = 400):
     return out
 
 def find_generalizability_v4(text: str, window: int = 8):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    pop_idx={i for i,t in enumerate(tokens) if POP_QUAL_RE.fullmatch(t)}
-    matches=find_generalizability_v2(text, window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=p<=w_e+window for p in pop_idx):
-            out.append((w_s,w_e,snip))
+    import string
+    spans = _token_spans(text)
+    tokens = [text[s:e].strip(string.punctuation) for s,e in spans]  # strip punctuation
+    pop_idx = {i for i, t in enumerate(tokens) if POP_QUAL_RE.fullmatch(t)}
+    matches = find_generalizability_v2(text, window=window)
+    out = []
+    for w_s, w_e, snip in matches:
+        if any(w_s - window <= p <= w_e + window for p in pop_idx):
+            out.append((w_s, w_e, snip))
     return out
 
 def find_generalizability_v5(text: str):

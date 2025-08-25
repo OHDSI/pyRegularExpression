@@ -22,12 +22,13 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     w_e = next(i for i,(a,b) in reversed(list(enumerate(spans))) if a<e<=b)
     return w_s, w_e
 
-LIMIT_CUE_RE = re.compile(r"\b(?:limitations?|limitation)\b", re.I)
+LIMIT_CUE_RE = re.compile(r"\b(?:limitations?|limitation|bias|small\s+sample|underpowered)\b", re.I)
 SELF_REF_RE = re.compile(r"\b(?:this\s+study|our\s+study|we\s+acknowledge|we\s+recognise)\b", re.I)
 WEAKNESS_RE = re.compile(r"\b(?:bias|small\s+sample|underpowered|not\s+powered|short\s+follow[- ]up|confound(?:ing|ers?)|generalisa?bility|selection\s+bias)\b", re.I)
-HEAD_LIMIT_RE = re.compile(r"(?m)^(?:limitations|strengths?\s+and\s+limitations)\s*[:\-]?\s*$", re.I)
+HEAD_LIMIT_RE = re.compile(r"(?mi)^(?:limitations|strengths?\s+and\s+limitations)\b.*", re.I)
 TIGHT_TEMPLATE_RE = re.compile(r"limitations?\s+include[s]?\s+[^\".\n]{0,80}(?:sample|follow[- ]up|bias)", re.I)
 TRAP_RE = re.compile(r"\blimitations?\s+of\s+(?:previous|prior|other)\s+studies\b", re.I)
+NEGATION_RE = re.compile(r"\b(?:no|not|without)\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans=_token_spans(text)
@@ -45,40 +46,51 @@ def find_limitations_v1(text: str):
     return _collect([LIMIT_CUE_RE], text)
 
 def find_limitations_v2(text: str, window: int = 6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if LIMIT_CUE_RE.fullmatch(t)}
-    self_idx={i for i,t in enumerate(tokens) if SELF_REF_RE.fullmatch(t)}
-    out=[]
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    cue_idx = {i for i, t in enumerate(tokens) if LIMIT_CUE_RE.search(t)}
+    self_matches = list(SELF_REF_RE.finditer(text))
+    self_idx = set()
+    for m in self_matches:
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        self_idx.update(range(w_s, w_e + 1))
+    out = []
     for c in cue_idx:
-        if any(abs(s-c)<=window for s in self_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+        if any(abs(s - c) <= window for s in self_idx):
+            w_s, w_e = _char_to_word(spans[c], spans)
+            out.append((w_s, w_e, tokens[c]))
     return out
 
 def find_limitations_v3(text: str, block_chars: int = 400):
-    spans=_token_spans(text)
-    blocks=[]
+    spans = _token_spans(text)
+    blocks = []
     for h in HEAD_LIMIT_RE.finditer(text):
-        s=h.end(); e=min(len(text),s+block_chars)
-        blocks.append((s,e))
-    inside=lambda p:any(s<=p<e for s,e in blocks)
-    out=[]
+        line_end = text.find("\n", h.start())
+        if line_end == -1:
+            line_end = len(text)
+        s = h.start()
+        e = min(line_end + block_chars, len(text))
+        blocks.append((s, e))
+    inside = lambda p: any(s <= p < e for s, e in blocks)
+    out = []
     for m in LIMIT_CUE_RE.finditer(text):
         if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_limitations_v4(text: str, window: int = 8):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    weak_idx={i for i,t in enumerate(tokens) if WEAKNESS_RE.fullmatch(t)}
-    matches=find_limitations_v2(text, window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=w<=w_e+window for w in weak_idx):
-            out.append((w_s,w_e,snip))
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    matches = find_limitations_v2(text, window=window)
+    out = []
+    for w_s, w_e, snip in matches:
+        sent_start = max(0, w_s - 5)
+        sent_end = min(len(tokens), w_e + 5)
+        sentence = " ".join(tokens[sent_start:sent_end+1])
+        if WEAKNESS_RE.search(sentence):
+            if not NEGATION_RE.search(sentence):
+                out.append((w_s, w_e, snip))
     return out
 
 def find_limitations_v5(text: str):

@@ -93,12 +93,16 @@ def find_ethics_approval_v3(text: str, block_chars: int = 250):
 def find_ethics_approval_v4(text: str, window: int = 6):
     """Tier 4 – v2 + consent phrase or protocol number nearby."""
     spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in spans]
-    consent_idx = {i for i, t in enumerate(tokens) if CONSENT_RE.fullmatch(t) or IRB_NUM_RE.fullmatch(t)}
     matches = find_ethics_approval_v2(text, window=window)
+    consent_hits = []
+    for patt in (CONSENT_RE, IRB_NUM_RE):
+        for m in patt.finditer(text):
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            consent_hits.append((w_s, w_e))
     out = []
     for w_s, w_e, snip in matches:
-        if any(c for c in consent_idx if w_s - window <= c <= w_e + window):
+        if any(c_s - window <= w_s <= c_e + window or w_s - window <= c_s <= w_e + window
+               for c_s, c_e in consent_hits):
             out.append((w_s, w_e, snip))
     return out
 

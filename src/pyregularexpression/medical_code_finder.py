@@ -45,7 +45,7 @@ MEDICAL_CODE_RE = re.compile(
 # 2.  Precision helpers & false‑positive fences
 # ─────────────────────────────
 CODE_TERM = (
-    r"(?:icd(?:[- ]?(?:9|10|11))?|icd[- ]?cm|icd[- ]?o|"
+    r"(?:icd[- ]?(?:9|10|11)|icd[- ]?cm|icd10cm|icd[- ]?o|"
     r"international\ classification\ of\ diseases(?:[- ]?(?:9|10|11))?)|"
     r"cpt|current\ procedural\ terminology(?:[- ]?4)?|hcpcs|healthcare\ common\ procedure\ coding\ system|"
     r"snomed(?:[ -]?ct)?|rxnorm|loinc|read\ codes?|icpc|atc(?:\s+codes?)?"
@@ -72,7 +72,10 @@ def _is_short_numeric_false_positive(match: re.Match[str], text: str, min_len: i
     if not token.isdigit() or len(token) >= min_len:
         return False
     span_start = max(0, match.start() - 30)
-    return not _CODE_CONTEXT_RE.search(text[span_start : match.start()])
+    span_text = text[span_start:match.start()]
+    if _CODE_CONTEXT_RE.search(span_text):
+        return False
+    return True
 
 # ─────────────────────────────
 # 4.  Finder variants (ladder Tiers 1‑5)
@@ -89,7 +92,7 @@ def find_medical_code_v1(text: str):  # high recall
 def find_medical_code_v2(text: str, window: int = 5):  # anchor ±window tokens
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    keywords_pos = {i for i, tok in enumerate(tokens) if CODE_KEYWORD_RE.fullmatch(tok)}
+    keywords_pos = {i for i, tok in enumerate(tokens) if CODE_KEYWORD_RE.search(tok)}
     out = []
     for m in MEDICAL_CODE_RE.finditer(text):
         if _is_short_numeric_false_positive(m, text):
