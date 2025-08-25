@@ -41,7 +41,11 @@ MULTIVAR_RE = re.compile(r"\bmultivaria(?:ble|te).*model\b", re.I)
 
 HEADING_ADJ_RE = re.compile(r"(?m)^(?:statistical\s+analysis|covariate\s+adjustment|analytical\s+approach)\s*[:\-]?\s*$", re.I)
 
-TRAP_RE = re.compile(r"\bdose\s+adjust(?:ment|ed)|dose\s+was\s+adjusted\b", re.I)
+TRAP_RE = re.compile(
+    r"\b(?:dose|doses|drug|drugs|treatment|treatments|therapy|therapies|regimen|regimens)\b.{0,40}\badjust(?:ment|ed)\b",
+    re.I
+)
+
 
 TIGHT_TEMPLATE_RE = re.compile(
     r"(?:adjusted|controlling|controlled)\s+for\s+[A-Za-z0-9,\s]+(?:age|sex|bmi|smok)\w*[^\.\n]{0,40}|multivaria(?:ble|te)\s+model\s+(?:including|adjusted)\s+[^\.\n]{0,60}",
@@ -72,16 +76,19 @@ def find_covariate_adjustment_v1(text: str) -> List[Tuple[int, int, str]]:
     return _collect([ADJUST_VERB_RE, MULTIVAR_RE], text)
 
 def find_covariate_adjustment_v2(text: str, window: int = 4) -> List[Tuple[int, int, str]]:
-    """Tier 2 – adjustment cue + link token within ±window tokens."""
+    """Tier 2 – adjustment cue + link token within ±window tokens, excluding traps."""
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
     link_idx = {i for i, t in enumerate(tokens) if LINK_TOKEN_RE.fullmatch(t)}
     out: List[Tuple[int, int, str]] = []
     for m in ADJUST_VERB_RE.finditer(text):
+        if TRAP_RE.search(text[max(0, m.start()-40): m.end()+40]):
+            continue
         w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
         if any(l for l in link_idx if w_s - window <= l <= w_e + window):
             out.append((w_s, w_e, m.group(0)))
     return out
+
 
 def find_covariate_adjustment_v3(text: str, block_chars: int = 300) -> List[Tuple[int, int, str]]:
     """Tier 3 – within Covariate adjustment heading blocks."""
@@ -102,7 +109,7 @@ def find_covariate_adjustment_v4(text: str, window: int = 6) -> List[Tuple[int, 
     """Tier 4 – v2 + explicit covariate keyword near cue."""
     token_spans = _token_spans(text)
     tokens = [text[s:e] for s, e in token_spans]
-    cov_idx = {i for i, t in enumerate(tokens) if COVARIATE_KEY_RE.fullmatch(t)}
+    cov_idx = {i for i, t in enumerate(tokens) if COVARIATE_KEY_RE.search(t.strip(",.;:"))}
     matches = find_covariate_adjustment_v2(text, window=window)
     out: List[Tuple[int, int, str]] = []
     for w_s, w_e, snip in matches:

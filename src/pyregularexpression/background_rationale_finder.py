@@ -30,9 +30,11 @@ STUDY_TOKEN_RE = re.compile(r"\b(?:this\s+study|the\s+study|study|research|work|
 HEADING_BG_RE = re.compile(r"(?m)^(?:introduction|background)\s*[:\-]?\s*$", re.I)
 TRAP_RE = re.compile(r"\bbackground\s+(?:therapy|medication|characteristics?)\b", re.I)
 TIGHT_TEMPLATE_RE = re.compile(
-    r"(?:however|yet)\s+[^\.\n]{0,60}(?:little\s+is\s+known|unknown|not\s+well\s+understood)[^\.\n]{0,60}(?:therefore|thus|to\s+address\s+this|this\s+study\s+aims)\b",
-    re.I,
+    r"(?:however|yet)[\s,;:]{0,5}[^\.\n]{0,100}?(?:little\s+is\s+known|unknown|not\s+well\s+understood)[^\.\n]{0,100}?(?:therefore|thus|to\s+address\s+this|this\s+study\s+aims)",
+    re.I
 )
+RATIONALE_RE = re.compile(r"\b(little\s+is\s+known|not\s+well\s+understood|unknown|knowledge\s+gap|important\s+gap)\b", re.I)
+UNMET_RE = re.compile(r"\b(little\s+is\s+known|not\s+well\s+understood|unknown|knowledge\s+gap|important\s+gap)\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans = _token_spans(text)
@@ -48,21 +50,19 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str):
 def find_background_rationale_v1(text: str):
     return _collect([GAP_PHRASE_RE], text)
 
-def find_background_rationale_v2(text: str, window: int = 4):
-    spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in spans]
-    gap_idx = {i for i, t in enumerate(tokens) if GAP_PHRASE_RE.fullmatch(t)}
-    study_idx = {i for i, t in enumerate(tokens) if STUDY_TOKEN_RE.fullmatch(t)}
-    out = []
-    for i in gap_idx:
-        if any(j for j in gap_idx if j != i and abs(j - i) <= window):
-            w_s, w_e = _char_to_word(spans[i], spans)
-            out.append((w_s, w_e, tokens[i]))
-            continue
-        if any(j for j in study_idx if abs(j - i) <= window):
-            w_s, w_e = _char_to_word(spans[i], spans)
-            out.append((w_s, w_e, tokens[i]))
-    return out
+def find_background_rationale_v2(text: str, window: int = 40) -> List[Tuple[int, int, str]]:
+    """
+    Finds snippets of text indicating background rationale or knowledge gaps.
+    Returns a list of tuples: (start_index, end_index, snippet)
+    """
+    matches = []
+    for match in RATIONALE_RE.finditer(text):
+        start, end = match.start(), match.end()
+        snippet_start = max(0, start - window)
+        snippet_end = min(len(text), end + window)
+        snippet = text[snippet_start:snippet_end].strip()
+        matches.append((start, end, snippet))
+    return matches
 
 def find_background_rationale_v3(text: str, block_chars: int = 500):
     spans = _token_spans(text)
@@ -78,16 +78,14 @@ def find_background_rationale_v3(text: str, block_chars: int = 500):
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_background_rationale_v4(text: str, window: int = 6):
-    unmet_re = re.compile(r"\b(little\s+is\s+known|not\s+well\s+understood|unknown|knowledge\s+gap|important\s+gap)\b", re.I)
-    spans = _token_spans(text)
-    tokens = [text[s:e] for s, e in spans]
-    unmet_idx = {i for i, t in enumerate(tokens) if unmet_re.fullmatch(t)}
-    matches = find_background_rationale_v2(text, window=window)
+def find_background_rationale_v4(text: str, window: int = 40) -> List[Tuple[int, int, str]]:
+    """
+    Version 4: builds on v2, specifically targeting 'unmet need' phrases.
+    """
     out = []
-    for w_s, w_e, snip in matches:
-        if any(u for u in unmet_idx if w_s - window <= u <= w_e + window):
-            out.append((w_s, w_e, snip))
+    for start, end, snippet in find_background_rationale_v2(text, window=window):
+        if UNMET_RE.search(snippet):
+            out.append((start, end, snippet))
     return out
 
 def find_background_rationale_v5(text: str):

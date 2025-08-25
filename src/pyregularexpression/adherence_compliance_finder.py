@@ -18,16 +18,16 @@ def _token_spans(text: str) -> List[Tuple[int, int]]:
 
 def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     s, e = span
-    w_s = next(i for i,(a,b) in enumerate(spans) if a<=s<b)
-    w_e = next(i for i,(a,b) in reversed(list(enumerate(spans))) if a<e<=b)
+    w_s = next(i for i, (a, b) in enumerate(spans) if a <= s < b)
+    w_e = next(i for i, (a, b) in reversed(list(enumerate(spans))) if a < e <= b or e == b)
     return w_s, w_e
 
-ADH_CUE_RE = re.compile(r"\b(?:adherence|compliance|medication\s+possession\s+ratio|mpr|proportion\s+of\s+days\s+covered|pdc|pill\s+count)\b", re.I)
+ADH_CUE_RE = re.compile(r"\b(?:adherence|compliance|medication\s+possession\s+ratio|mpr|proportion\s+of\s+days\s+covered|pdc|pill\s+counts?)\b", re.I)
 VERB_RE = re.compile(r"\b(?:defined|calculated|measured|assessed|evaluated|determined|computed)\b", re.I)
-THRESH_RE = re.compile(r"[≥>]?\s*\d+(?:\.\d+)?\s*(?:%|percent|proportion|ratio|pdc|mpr)?", re.I)
-HEAD_ADH_RE = re.compile(r"(?m)^(?:adherence|compliance|medication\s+adherence)\s*[:\-]?\s*$", re.I)
 TIGHT_TEMPLATE_RE = re.compile(r"adherence\s+was\s+defined[^\.\n]{0,60}(?:pdc|mpr)[^≥>]*[≥>]\s*0?\.?(?:7|8|80)", re.I)
-TRAP_RE = re.compile(r"\badherence\s+to\s+guidelines|baseline\s+adherence\b", re.I)
+TRAP_RE = re.compile(r"\b(?:adherence\s+to\s+(?:guidelines|study\s+procedures|protocols?)|baseline\s+adherence|expected\s+adherence)\b", re.I)
+HEAD_ADH_RE = re.compile(r"(?m)^(?:adherence|compliance|medication\s+adherence)\s*[:\-]?", re.I)
+THRESH_RE = re.compile(r"(?:pdc|mpr|pill\s*counts?)\s*[≥>]\s*\d+(?:\.\d+)?(?:\s*(?:%|percent))?|[≥>]\s*\d+(?:\.\d+)?(?:\s*(?:%|percent|proportion|ratio))", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans=_token_spans(text)
@@ -57,25 +57,38 @@ def find_adherence_compliance_v2(text: str, window: int = 4):
     return out
 
 def find_adherence_compliance_v3(text: str, block_chars: int = 400):
-    spans=_token_spans(text)
-    blocks=[(h.end(),min(len(text),h.end()+block_chars)) for h in HEAD_ADH_RE.finditer(text)]
-    inside=lambda p:any(s<=p<e for s,e in blocks)
-    out=[]
-    for m in ADH_CUE_RE.finditer(text):
-        if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+    spans = _token_spans(text)
+    out = []
+    for h in HEAD_ADH_RE.finditer(text):
+        # find end of heading line
+        line_end = text.find("\n", h.end())
+        if line_end == -1:
+            line_end = len(text)
+        start = line_end + 1
+        end = min(len(text), start + block_chars)
+        for m in ADH_CUE_RE.finditer(text, start, end):
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_adherence_compliance_v4(text: str, window: int = 6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    thr_idx={i for i,t in enumerate(tokens) if THRESH_RE.fullmatch(t)}
-    matches=find_adherence_compliance_v2(text, window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=k<=w_e+window for k in thr_idx):
-            out.append((w_s,w_e,snip))
+def find_adherence_compliance_v4(text: str, window: int = 12):
+    spans = _token_spans(text)
+
+    thr_matches = []
+    for m in THRESH_RE.finditer(text):
+        try:
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            thr_matches.append((w_s, w_e, text[m.start():m.end()]))
+        except StopIteration:
+            continue
+    # Keep verb-window matches from v2 only if a threshold is nearby
+    matches = find_adherence_compliance_v2(text, window=window)
+    out = []
+    for w_s, w_e, snip in matches:
+        if any(ws >= w_s - window and we <= w_e + window for ws, we, _ in thr_matches):
+            out.append((w_s, w_e, snip))
+    # Add direct threshold matches (covers "PDC ≥ 0.8", "pill count ≥ 90%")
+    out.extend(thr_matches)
     return out
 
 def find_adherence_compliance_v5(text: str):

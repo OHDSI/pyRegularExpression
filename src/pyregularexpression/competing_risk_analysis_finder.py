@@ -28,6 +28,7 @@ TECH_RE = re.compile(r"\b(?:fine[–-]?gray|sub[- ]?hazard|cumulative\s+incidenc
 HEAD_CR_RE = re.compile(r"(?m)^(?:competing\s+risk(?:s)?|fine[–-]?gray|cumulative\s+incidence)\s*[:\-]?\s*$", re.I)
 TIGHT_TEMPLATE_RE = re.compile(r"fitted\s+fine[–-]?gray\s+model[s]?[^\.\n]{0,40}shr", re.I)
 TRAP_RE = re.compile(r"\bcompetition\s+for\s+resources|risk\s+competition\b", re.I)
+NEG_RE = re.compile(r"\b(?:without|not|no|absence(?:\s+of)?|lacking|lack|did\s+not|didn’t|didn't|never|rather\s+than)\b", re.I)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans=_token_spans(text)
@@ -44,16 +45,22 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str):
 def find_competing_risk_analysis_v1(text: str):
     return _collect([CR_CUE_RE], text)
 
-def find_competing_risk_analysis_v2(text: str, window:int=4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if CR_CUE_RE.fullmatch(t)}
-    verb_idx={i for i,t in enumerate(tokens) if VERB_RE.fullmatch(t)}
-    out=[]
-    for c in cue_idx:
-        if any(abs(v-c)<=window for v in verb_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+def find_competing_risk_analysis_v2(text: str, window: int = 4):
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+
+    # collect all matches of cues and verbs over the whole text
+    cue_matches = [(m.start(), m.end()) for m in CR_CUE_RE.finditer(text)]
+    verb_matches = [(m.start(), m.end()) for m in VERB_RE.finditer(text)]
+
+    cue_idx = [_char_to_word(span, spans) for span in cue_matches]
+    verb_idx = [_char_to_word(span, spans) for span in verb_matches]
+
+    out = []
+    for c_s, c_e in cue_idx:
+        if any(abs(v_s - c_s) <= window or abs(v_e - c_e) <= window for v_s, v_e in verb_idx):
+            snippet = text[spans[c_s][0]: spans[min(len(spans)-1, c_e)][1]]
+            out.append((c_s, c_e, snippet))
     return out
 
 def find_competing_risk_analysis_v3(text:str, block_chars:int=400):
@@ -67,15 +74,26 @@ def find_competing_risk_analysis_v3(text:str, block_chars:int=400):
             out.append((w_s,w_e,m.group(0)))
     return out
 
-def find_competing_risk_analysis_v4(text:str, window:int=6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    tech_idx={i for i,t in enumerate(tokens) if TECH_RE.fullmatch(t)}
-    matches=find_competing_risk_analysis_v2(text,window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(w_s-window<=t<=w_e+window for t in tech_idx):
-            out.append((w_s,w_e,snip))
+def find_competing_risk_analysis_v4(text: str, window: int = 6):
+    spans = _token_spans(text)
+    matches = find_competing_risk_analysis_v2(text, window)
+    if not matches:
+        return []
+    tech_positions: set[int] = set()
+    for m in TECH_RE.finditer(text):
+        w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+        lookback = 5
+        left_idx = max(0, w_s - lookback)
+        left_text = text[spans[left_idx][0]: m.start()]
+        if NEG_RE.search(left_text):
+            continue
+        tech_positions.add(w_s)
+    if not tech_positions:
+        return []
+    out = []
+    for w_s, w_e, snip in matches:
+        if any(w_s - window <= t <= w_e + window for t in tech_positions):
+            out.append((w_s, w_e, snip))
     return out
 
 def find_competing_risk_analysis_v5(text:str):

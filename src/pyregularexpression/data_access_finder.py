@@ -27,6 +27,7 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
     return w_s, w_e
 
 # ---------- regex assets ----------
+
 AVAIL_RE = re.compile(r"\b(?:available|accessible|access|accession|request|upon\s+request|on\s+request|repository|deposited|released|shared|restricted|embargo)\b", re.I)
 DATA_TOKEN_RE = re.compile(r"\b(?:data(?:set)?|datasets|database)\b", re.I)
 PERMISSION_RE = re.compile(r"\b(?:approval|agreement|committee|irb|dua|data\s+use\s+agreement|ethics|governance)\b", re.I)
@@ -59,11 +60,11 @@ def find_data_access_v2(text: str, window: int = 3):
     """Tier 2 – keyword within ±window tokens of “data/dataset”."""
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    data_idx = {i for i, t in enumerate(tokens) if DATA_TOKEN_RE.fullmatch(t)}
+    data_idx = {i for i, t in enumerate(tokens) if DATA_TOKEN_RE.search(t)}
     out = []
     for m in AVAIL_RE.finditer(text):
         w_s, w_e = _char_to_word((m.start(), m.end()), spans)
-        if any(d for d in data_idx if w_s - window <= d <= w_e + window):
+        if any(w_s - window <= d <= w_e + window for d in data_idx):
             out.append((w_s, w_e, m.group(0)))
     return out
 
@@ -88,7 +89,7 @@ def find_data_access_v4(text: str, window: int = 5):
     """Tier 4 – v2 + permission/repository token near phrase."""
     spans = _token_spans(text)
     tokens = [text[s:e] for s, e in spans]
-    perm_idx = {i for i, t in enumerate(tokens) if PERMISSION_RE.fullmatch(t) or REPO_RE.fullmatch(t)}
+    perm_idx = {i for i, t in enumerate(tokens) if PERMISSION_RE.search(t) or REPO_RE.search(t)}
     matches = find_data_access_v2(text, window=window)
     out = []
     for w_s, w_e, snip in matches:
