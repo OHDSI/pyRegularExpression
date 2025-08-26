@@ -24,12 +24,21 @@ def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
 
 NUM_RE = r"\d+(?:\.\d+)?%?"
 NUM_TOKEN_RE = re.compile(r"^\d+(?:\.\d+)?%?$" )
-BASELINE_CUE_RE = re.compile(r"\b(?:baseline\s+characteristics|at\s+baseline|baseline\s+demographics|table\s+1)\b", re.I)
+BASELINE_CUE_RE = re.compile(
+    r"\b(?:baseline(?:\s+(?:characteristics|demographics|data))?|at\s+baseline|table\s+1)\b",
+    re.I
+)
 GROUP_RE = re.compile(r"\b(?:treatment|intervention|placebo|control|group|arm|vs|versus|compared\s+to)\b", re.I)
 VAR_RE = re.compile(r"\b(?:age|sex|gender|male|female|bmi|body\s+mass\s+index|weight|height|smokers?|comorbidities?|race|ethnicity)\b", re.I)
 HEAD_BASE_RE = re.compile(r"(?m)^(?:baseline\s+characteristics|table\s+1|baseline\s+data)\s*[:\-]?\s*$", re.I)
 TRAP_RE = re.compile(r"\bbaseline\s+(tumou?r|lesion|value|measurement)\b", re.I)
-TIGHT_TEMPLATE_RE = re.compile(r"mean\s+age\s+\d+\s*vs\s*\d+;?\s+\d+%\s+female\s+in\s+both\s+groups\s+at\s+baseline", re.I)
+TIGHT_TEMPLATE_RE = re.compile(
+    r"""
+    (?=.*\b(mean|median)?\s*age\s*\d+\s*(?:±\s*\d+)?\s*vs\s*\d+)    
+    (?=.*\b\d+\s*%\s*(?:male|female)\b.*?(?:in\s+both\s+groups)?\s*(?:at\s+baseline)?)
+    """,
+    re.I | re.X
+)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
     spans=_token_spans(text)
@@ -46,47 +55,57 @@ def find_baseline_data_v1(text: str):
     pattern=re.compile(rf"{BASELINE_CUE_RE.pattern}[^\n]{{0,30}}{NUM_RE}", re.I)
     return _collect([pattern], text)
 
-def find_baseline_data_v2(text: str, window: int = 4):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    cue_idx={i for i,t in enumerate(tokens) if BASELINE_CUE_RE.fullmatch(t)}
-    num_idx={i for i,t in enumerate(tokens) if NUM_TOKEN_RE.fullmatch(t)}
-    grp_idx={i for i,t in enumerate(tokens) if GROUP_RE.fullmatch(t)}
-    out=[]
-    for c in cue_idx:
-        if any(abs(n-c)<=window for n in num_idx) and any(abs(g-c)<=window for g in grp_idx):
-            w_s,w_e=_char_to_word(spans[c],spans)
-            out.append((w_s,w_e,tokens[c]))
+def find_baseline_data_v2(text: str, window: int = 8):
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    out = []
+    sentences = re.split(r"(?<=[\.\n])\s+", text)
+
+    for sent in sentences:
+        if BASELINE_CUE_RE.search(sent) and GROUP_RE.search(sent) and re.search(NUM_RE, sent):
+            for m in BASELINE_CUE_RE.finditer(sent):
+                abs_start = text.find(sent) + m.start()
+                abs_end = text.find(sent) + m.end()
+                w_s, w_e = _char_to_word((abs_start, abs_end), spans)
+                out.append((w_s, w_e, m.group(0)))
     return out
 
 def find_baseline_data_v3(text: str, block_chars: int = 400):
-    spans=_token_spans(text)
-    blocks=[]
+    spans = _token_spans(text)
+    blocks = []
     for h in HEAD_BASE_RE.finditer(text):
-        s=h.end(); e=min(len(text),s+block_chars)
-        blocks.append((s,e))
-    inside=lambda p:any(s<=p<e for s,e in blocks)
-    out=[]
-    for m in BASELINE_CUE_RE.finditer(text):
-        if inside(m.start()):
-            w_s,w_e=_char_to_word((m.start(),m.end()),spans)
-            out.append((w_s,w_e,m.group(0)))
+        s = h.end()
+        e = min(len(text), s + block_chars)
+        blocks.append((s, e))
+    out = []
+    for s, e in blocks:
+        block_text = text[s:e]
+        for m in re.finditer(r"\b(?:age|bmi|sex|weight|height|%|\d+)\b", block_text, re.I):
+            abs_start = s + m.start()
+            abs_end = s + m.end()
+            w_s, w_e = _char_to_word((abs_start, abs_end), spans)
+            out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_baseline_data_v4(text: str, window: int = 6):
-    spans=_token_spans(text)
-    tokens=[text[s:e] for s,e in spans]
-    matches=find_baseline_data_v2(text, window=window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        vars_near=len({tokens[i].lower() for i in range(max(0,w_s-window),min(len(tokens),w_e+window)) if VAR_RE.fullmatch(tokens[i])})
-        nums_near=sum(1 for i in range(max(0,w_s-window),min(len(tokens),w_e+window)) if NUM_TOKEN_RE.fullmatch(tokens[i]))
-        if vars_near>=2 or nums_near>=2:
-            out.append((w_s,w_e,snip))
+def find_baseline_data_v4(text: str, window: int = 8):
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    matches = find_baseline_data_v2(text, window)
+    out = []
+    for w_s, w_e, snip in matches:
+        context = " ".join(tokens[max(0, w_s - window):min(len(tokens), w_e + window)])
+        vars_found = set(VAR_RE.findall(context))
+        nums_found = re.findall(NUM_RE, context)
+        if len(vars_found) >= 2 or len(nums_found) >= 2:
+            out.append((w_s, w_e, snip))
     return out
 
-def find_baseline_data_v5(text: str):
-    return _collect([TIGHT_TEMPLATE_RE], text)
+def find_baseline_data_v5(text: str) -> List[Tuple[int, int, str]]:
+    match = TIGHT_TEMPLATE_RE.search(text)
+    if match:
+        start, end = match.span()
+        return [(start, end, text[start:end])]
+    return []
 
 BASELINE_DATA_FINDERS: Dict[str,Callable[[str],List[Tuple[int,int,str]]]] = {
     "v1": find_baseline_data_v1,

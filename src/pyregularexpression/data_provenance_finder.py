@@ -1,11 +1,17 @@
-"""algorithm_validation_finder.py – precision/recall ladder for *algorithm validation* statements.
+"""
+data_provenance_finder.py – precision/recall ladder for *data provenance* 
+(references to origin, lineage, or traceability of datasets).
+
 Five variants (v1–v5):
-    • v1 – high recall: any phrase “algorithm validation/validated/evaluated” or performance metric keywords.
-    • v2 – algorithm keyword + validation verb (validated/evaluated/assessed) within ±window tokens.
-    • v3 – only inside an *Algorithm validation / Performance evaluation* heading block.
-    • v4 – v2 plus metric tokens (PPV, NPV, sensitivity, specificity, accuracy, F1, AUC) to exclude algorithm-use-only context.
-    • v5 – tight template: “Algorithm validated against chart review; PPV 92 %”, “Accuracy 0.89 (95 % CI) in external validation”, etc.
-Each finder returns a list of tuples: (start_token_idx, end_token_idx, matched_snippet)
+    • v1 – high recall: any clause containing `provenance`, `origin`, `lineage`, `source data`, 
+      `traceability`, `audit trail`.
+    • v2 – v1 **and** paired with verbs like `documented`, `recorded`, `tracked`, `maintained` 
+      within ±4 tokens.
+    • v3 – only inside a *Methods*, *Data Source*, or *Provenance* heading block (first ~400 characters).
+    • v4 – v2 plus explicit mention of dataset/file/source system (e.g. “raw data,” “clinical record,” “CSV”).
+    • v5 – tight template: “Data provenance documented in audit trail; lineage maintained across transformations.”
+
+Each finder returns tuples: (start_word_idx, end_word_idx, snippet).
 """
 from __future__ import annotations
 import re
@@ -13,79 +19,105 @@ from typing import List, Tuple, Sequence, Dict, Callable
 
 TOKEN_RE = re.compile(r"\S+")
 
-def _token_spans(text: str) -> List[Tuple[int,int]]:
+def _token_spans(text: str) -> List[Tuple[int, int]]:
     return [(m.start(), m.end()) for m in TOKEN_RE.finditer(text)]
 
-def _char_span_to_word_span(span: Tuple[int,int], token_spans: Sequence[Tuple[int,int]]) -> Tuple[int,int]:
-    s_char, e_char = span
-    w_start = next(i for i,(s,e) in enumerate(token_spans) if s<=s_char<e)
-    w_end = next(i for i,(s,e) in reversed(list(enumerate(token_spans))) if s<e_char<=e)
-    return w_start, w_end
+def _char_to_word(span: Tuple[int, int], spans: Sequence[Tuple[int, int]]):
+    s, e = span
+    w_s = next(i for i, (a, b) in enumerate(spans) if a <= s < b)
+    w_e = next(i for i, (a, b) in reversed(list(enumerate(spans))) if a < e <= b)
+    return w_s, w_e
 
-ALGO_TERM_RE = re.compile(r"\balgorithm\b", re.I)
-VALIDATE_VERB_RE = re.compile(r"\b(?:validated|validation|evaluated|assessed|tested|performance)\b", re.I)
-METRIC_TOKEN_RE = re.compile(r"\b(?:ppv|npv|positive\s+predictive\s+value|negative\s+predictive\s+value|sensitivity|specificity|accuracy|f1|auc|area\s+under\s+the\s+curve|kappa)\b", re.I)
-HEADING_VALID_RE = re.compile(r"(?m)^(?:algorithm\s+validation|validation\s+study|performance\s+evaluation)\s*[:\-]?\s*$", re.I)
-TRAP_RE = re.compile(r"\b(?:validated\s+questionnaire|assay\s+validation|method\s+validation)\b", re.I)
-TIGHT_TEMPLATE_RE = re.compile(r"algorithm\s+(?:was\s+)?(?:validated|evaluated|assessed)[^\.\n]{0,80}(?:ppv|accuracy|sensitivity|specificity|auc|f1)\b", re.I)
+# Core regex patterns
+PROVENANCE_RE = re.compile(r"\b(?:provenance|lineage|origin|traceability|audit\s+trail|source\s+data)\b", re.I)
+VERB_RE = re.compile(r"\b(?:document(?:ed|ation)?|record(?:ed|ing)?|track(?:ed|ing)?|maintain(?:ed|ance)?|capture(?:d)?|log(?:ged|ging)?)\b", re.I)
+DATASET_RE = re.compile(r"\b(?:dataset|data\s+set|raw\s+data(?:\s+\w+)*|clinical\s+record(?:s|\s+system)?|CSV|Excel|database|source\s+system|file|files)\b", re.I)
+HEAD_SEC_RE = re.compile(r"(?i)(methods|data\s+source|provenance|traceability|audit)\s*[:\-]?", re.M)
+TIGHT_TEMPLATE_RE = re.compile(r"(?:data\s+)?provenance\s+(?:was\s+)?(documented|recorded|maintained).*?(audit\s+trail|lineage)", re.I | re.DOTALL)
 
 def _collect(patterns: Sequence[re.Pattern[str]], text: str):
-    token_spans=_token_spans(text)
-    out=[]
+    spans = _token_spans(text)
+    out: List[Tuple[int, int, str]] = []
     for patt in patterns:
         for m in patt.finditer(text):
-            if TRAP_RE.search(text[max(0,m.start()-30):m.end()+30]): continue
-            w_s,w_e=_char_span_to_word_span((m.start(),m.end()),token_spans)
-            out.append((w_s,w_e,m.group(0)))
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_algorithm_validation_v1(text:str):
-    return _collect([re.compile(r"algorithm\s+validation",re.I), VALIDATE_VERB_RE, METRIC_TOKEN_RE], text)
+# Variant 1 – High recall
+def find_data_provenance_v1(text: str):
+    return _collect([PROVENANCE_RE], text)
 
-def find_algorithm_validation_v2(text:str, window:int=4):
-    token_spans=_token_spans(text); tokens=[text[s:e] for s,e in token_spans]
-    val_idx={i for i,t in enumerate(tokens) if VALIDATE_VERB_RE.fullmatch(t)}
-    out=[]
-    for m in ALGO_TERM_RE.finditer(text):
-        w_s,w_e=_char_span_to_word_span((m.start(),m.end()),token_spans)
-        if any(v for v in val_idx if w_s-window<=v<=w_e+window):
-            out.append((w_s,w_e,m.group(0)))
+# Variant 2 – Add provenance + verbs within ±4 tokens
+def find_data_provenance_v2(text: str, window: int = 4):
+    spans = _token_spans(text)
+    tokens = [text[s:e] for s, e in spans]
+    prov_idx = {i for i, t in enumerate(tokens) if PROVENANCE_RE.search(t)}
+    verb_idx = {i for i, t in enumerate(tokens) if VERB_RE.search(t)}
+    out = []
+    for p_i in prov_idx:
+        nearby_verbs = [v for v in verb_idx if abs(v - p_i) <= window]
+        if not nearby_verbs:
+            nearby_verbs = [v for v in verb_idx if abs(v - p_i) <= window + 1]
+        if nearby_verbs:
+            w_s = min([p_i] + nearby_verbs)
+            w_e = max([p_i] + nearby_verbs)
+            snippet = " ".join(tokens[w_s:w_e+1])
+            out.append((w_s, w_e, snippet))
     return out
 
-def find_algorithm_validation_v3(text:str, block_chars:int=300):
-    token_spans=_token_spans(text); blocks=[]
-    for h in HEADING_VALID_RE.finditer(text):
-        s=h.end(); nxt=text.find("\n\n",s); e=nxt if 0<=nxt-s<=block_chars else s+block_chars
-        blocks.append((s,e))
-    inside=lambda p:any(s<=p<e for s,e in blocks)
-    out=[]
-    for m in ALGO_TERM_RE.finditer(text):
+# Variant 3 – Only inside heading blocks
+def find_data_provenance_v3(text: str, block_chars: int = 400):
+    spans = _token_spans(text)
+    blocks = []
+    for h in HEAD_SEC_RE.finditer(text):
+        s = h.end(); e = min(len(text), s + block_chars)
+        blocks.append((s, e))
+    inside = lambda p: any(s <= p < e for s, e in blocks)
+    out = []
+    for m in PROVENANCE_RE.finditer(text):
         if inside(m.start()):
-            w_s,w_e=_char_span_to_word_span((m.start(),m.end()),token_spans)
-            out.append((w_s,w_e,m.group(0)))
+            w_s, w_e = _char_to_word((m.start(), m.end()), spans)
+            out.append((w_s, w_e, m.group(0)))
     return out
 
-def find_algorithm_validation_v4(text:str, window:int=6):
-    token_spans=_token_spans(text); tokens=[text[s:e] for s,e in token_spans]
-    met_idx={i for i,t in enumerate(tokens) if METRIC_TOKEN_RE.fullmatch(t)}
-    matches=find_algorithm_validation_v2(text,window)
-    out=[]
-    for w_s,w_e,snip in matches:
-        if any(m for m in met_idx if w_s-window<=m<=w_e+window):
-            out.append((w_s,w_e,snip))
+# Variant 4 – Provenance + dataset/file mention
+def find_data_provenance_v4(text: str, window: int = 6):
+    base_matches = find_data_provenance_v2(text, window=window)
+    spans = _token_spans(text)
+    out = []
+    dataset_spans = [(m.start(), m.end()) for m in DATASET_RE.finditer(text)]
+    for w_s, w_e, snip in base_matches:
+        char_s, char_e = spans[w_s][0], spans[w_e][1]
+        for d_s, d_e in dataset_spans:
+            context = text[max(0, d_s - 10):min(len(text), d_e + 20)].lower()
+            if "no dataset" in context or "without dataset" in context:
+                continue
+            if not (d_e < char_s - 50 or d_s > char_e + 50):
+                out.append((w_s, w_e, snip))
+                break
     return out
 
-def find_algorithm_validation_v5(text:str):
+# Variant 5 – Tight template
+def find_data_provenance_v5(text: str):
     return _collect([TIGHT_TEMPLATE_RE], text)
 
-ALGORITHM_VALIDATION_FINDERS: Dict[str,Callable[[str],List[Tuple[int,int,str]]]] = {
-    "v1": find_algorithm_validation_v1,
-    "v2": find_algorithm_validation_v2,
-    "v3": find_algorithm_validation_v3,
-    "v4": find_algorithm_validation_v4,
-    "v5": find_algorithm_validation_v5,
+DATA_PROVENANCE_FINDERS: Dict[str, Callable[[str], List[Tuple[int,int,str]]]] = {
+    "v1": find_data_provenance_v1,
+    "v2": find_data_provenance_v2,
+    "v3": find_data_provenance_v3,
+    "v4": find_data_provenance_v4,
+    "v5": find_data_provenance_v5,
 }
 
-__all__=["find_algorithm_validation_v1","find_algorithm_validation_v2","find_algorithm_validation_v3","find_algorithm_validation_v4","find_algorithm_validation_v5","ALGORITHM_VALIDATION_FINDERS"]
-find_algorithm_validation_high_recall=find_algorithm_validation_v1
-find_algorithm_validation_high_precision=find_algorithm_validation_v5
+__all__ = [
+    "find_data_provenance_v1",
+    "find_data_provenance_v2",
+    "find_data_provenance_v3",
+    "find_data_provenance_v4",
+    "find_data_provenance_v5",
+    "DATA_PROVENANCE_FINDERS",
+]
+
+find_data_provenance_high_recall = find_data_provenance_v1
+find_data_provenance_high_precision = find_data_provenance_v5

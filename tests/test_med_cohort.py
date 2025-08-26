@@ -1,7 +1,7 @@
 # tests/test_med_cohort.py
 import re
 import pytest
-from pyregularexpression import (
+from pyregularexpression.med_cohort import (
     extract_medical_codes,
     find_cohort_logic,
     MEDICAL_CODE_RE,
