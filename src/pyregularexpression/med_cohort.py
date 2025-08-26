@@ -10,10 +10,7 @@ TEMPORAL_WINDOW = r"(?:look[- ]?back|wash[- ]?out|baseline|observation|follow[- 
 INCL_EXCL = r"(?:inclusion|exclusion|eligibility|selection)\s+criteria|(?:included|excluded)\s+(?:patients|subjects|participants|individuals)|(?:required|criteria\ for)\s+(?:inclusion|exclusion|eligibility)|cohort\ definition|phenotype\ algorithm|(?:must|had)\s+to\s+have|must\s+have|must\s+not\s+have|required\s+to\s+have|patients?\s+with.+?(?:were|was)\s+excluded?"
 CARE_SETTING = r"(?:inpatient|outpatient|ambulatory)\s+(?:setting|visit|stay|care|record|encounter|population|basis)|(?:hospitalized|hospitalization|admitted\s+to\s+(?:hospital|inpatient))|(?:emergency\s+department|ed|emergency\s+room|er)\s+(?:visit|setting|care|encounter)|(?:clinic|primary\ care|specialty\ care)\s+(?:visit|setting|record|encounter)|primary\ care|specialist\ visit|telehealth\ visit|same[- ]?day\ surgery|day[- ]?case"
 WITHIN_2K = r"(?:\b\w+\b\W*){0,1999}"
-
-COHORT_LOGIC_RE = re.compile(
-    rf"(?xi)({CODE_TERM}|{TEMPORAL_WINDOW}|{INCL_EXCL}|{CARE_SETTING})"
-)
+COHORT_LOGIC_RE = re.compile(rf"(?xi)({CODE_TERM}|{TEMPORAL_WINDOW}|{INCL_EXCL}|{CARE_SETTING})")
 
 # ─────────────────────────────
 # 2.  Public helper
@@ -33,4 +30,39 @@ def find_cohort_logic(
                     otherwise return the matching snippets as plain strings.
     """
     spans = [(m.start(), m.end(), m.group(0)) for m in COHORT_LOGIC_RE.finditer(text)]
+    return spans if return_offsets else [s[-1] for s in spans]
+
+# ─────────────────────────────
+# 3.  Medical code extractor
+# ─────────────────────────────
+MEDICAL_CODE_RE = re.compile(
+    r"""
+    (
+      \b\d{4}-\d{4}-\d{2}\b         # NDC hyphenated (0002-8215-01)
+      |\b\d{10,11}\b                # NDC plain 10–11 digits (0002821501)
+      |[A-Z]\d{2}[A-Z]{2}\d{2}      # ATC (A10BA02)
+      |[A-Z]\d{1,2}\.\d+            # ICD (E11.9)
+      |\b\d{4,5}\b                  # CPT (99213)
+      |\b\d{6,8}\b                  # RxCUI / short SNOMED
+      |\b\d{9,18}\b                 # long SNOMED
+    )
+    """,
+    re.VERBOSE,
+)
+
+def extract_medical_codes(
+    text: str,
+    *,
+    return_offsets: bool = False,
+    unique: bool = True,
+) -> List[Tuple[int, int, str]] | List[str]:
+    spans = [(m.start(), m.end(), m.group(0)) for m in MEDICAL_CODE_RE.finditer(text)]
+    if unique:
+        seen = set()
+        deduped = []
+        for s in spans:
+            if s[-1] not in seen:
+                seen.add(s[-1])
+                deduped.append(s)
+        spans = deduped
     return spans if return_offsets else [s[-1] for s in spans]

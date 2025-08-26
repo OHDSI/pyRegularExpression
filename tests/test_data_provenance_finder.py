@@ -1,75 +1,101 @@
 # tests/test_data_provenance_finder.py
-
+"""
+Pytest suite for data_provenance_finder.py
+Ladder v1–v5:
+    • v1 – any provenance/lineage/origin/traceability/audit/source data cue
+    • v2 – v1 + paired with verbs like documented/recorded/tracked within ±4 tokens
+    • v3 – only inside Methods / Data Source / Provenance heading blocks
+    • v4 – v2 + explicit mention of dataset/file/source system
+    • v5 – tight template requiring both provenance cue and lineage/audit trail
+"""
 import pytest
-from pyregularexpression.algorithm_validation_finder import (
-    find_algorithm_validation_v1,
-    find_algorithm_validation_v2,
-    find_algorithm_validation_v3,
-    find_algorithm_validation_v4,
-    find_algorithm_validation_v5,
+from pyregularexpression.data_provenance_finder import (
+    find_data_provenance_v1,
+    find_data_provenance_v2,
+    find_data_provenance_v3,
+    find_data_provenance_v4,
+    find_data_provenance_v5,
 )
 
-# -----------------------------
-# Test cases for v1 (high recall)
-# -----------------------------
-@pytest.mark.parametrize("text, expected, case_id", [
-    ("The algorithm was validated against chart review.", True, "v1_pos_basic_validated"),
-    ("Algorithm validation showed high performance metrics.", True, "v1_pos_validation_phrase"),
-    ("Sensitivity and specificity were calculated for the algorithm.", True, "v1_pos_metric_only"),
-    ("A validated questionnaire was used to collect responses.", False, "v1_neg_questionnaire"),
-    ("Assay validation was performed in the lab.", False, "v1_neg_assay"),
-])
-def test_find_algorithm_validation_v1(text, expected, case_id):
-    res = find_algorithm_validation_v1(text)
-    assert (len(res) > 0) == expected, f"v1 failed for ID: {case_id}"
+# ─────────────────────────────
+# v1 – high recall
+# ─────────────────────────────
+@pytest.mark.parametrize(
+    "text, should_match, test_id",
+    [
+        ("The provenance of source data was carefully evaluated.", True, "v1_pos_provenance"),
+        ("An audit trail ensured data integrity.", True, "v1_pos_audit_trail"),
+        ("We assessed lineage across multiple transformations.", True, "v1_pos_lineage"),
+        ("The dataset was analyzed without mentioning its history.", False, "v1_neg_no_provenance"),
+        ("Traceability was a key component of the study.", True, "v1_pos_traceability"),
+    ],
+)
+def test_v1_data_provenance(text, should_match, test_id):
+    matches = find_data_provenance_v1(text)
+    assert bool(matches) == should_match, f"v1 failed for {test_id}"
 
 
-# -----------------------------
-# Test cases for v2 (algorithm + nearby validation verb)
-# -----------------------------
-@pytest.mark.parametrize("text, expected, case_id", [
-    ("Algorithm validated in the test cohort.", True, "v2_pos_validated_near_algo"),
-    ("We assessed the algorithm on external data.", True, "v2_pos_assessed_near_algo"),
-    ("The algorithm was applied for prediction.", False, "v2_neg_no_validation_verb"),
-    ("Validated questionnaire used in the study.", False, "v2_neg_trap_questionnaire"),
-])
-def test_find_algorithm_validation_v2(text, expected, case_id):
-    res = find_algorithm_validation_v2(text, window=4)
-    assert (len(res) > 0) == expected, f"v2 failed for ID: {case_id}"
+# ─────────────────────────────
+# v2 – provenance + verb nearby
+# ─────────────────────────────
+@pytest.mark.parametrize(
+    "text, should_match, test_id",
+    [
+        ("Data provenance was documented in the clinical trial records.", True, "v2_pos_provenance_documented"),
+        ("The origin of the data was tracked throughout the ETL process.", True, "v2_pos_origin_tracked"),
+        ("Audit trail maintained provenance information.", True, "v2_pos_audit_trail_maintained"),
+        ("Provenance of data is important, but no action verb mentioned.", False, "v2_neg_no_verb"),
+        ("Lineage was carefully recorded across steps.", True, "v2_pos_lineage_recorded"),
+    ],
+)
+def test_v2_data_provenance(text, should_match, test_id):
+    matches = find_data_provenance_v2(text, window=4)
+    assert bool(matches) == should_match, f"v2 failed for {test_id}"
 
 
-# -----------------------------
-# Test cases for v3 (inside heading blocks)
-# -----------------------------
-@pytest.mark.parametrize("text, expected, case_id", [
-    ("Algorithm Validation:\nThe algorithm was evaluated on hospital records.", True, "v3_pos_heading_eval"),
-    ("Methods: The algorithm was validated externally.", False, "v3_neg_no_heading"),
-])
-def test_find_algorithm_validation_v3(text, expected, case_id):
-    res = find_algorithm_validation_v3(text, block_chars=300)
-    assert (len(res) > 0) == expected, f"v3 failed for ID: {case_id}"
+# ─────────────────────────────
+# v3 – only inside Methods / Data Source / Provenance blocks
+# ─────────────────────────────
+@pytest.mark.parametrize(
+    "text, should_match, test_id",
+    [
+        ("Methods:\nData provenance was evaluated for each dataset.", True, "v3_pos_methods_block"),
+        ("Data Source:\nThe lineage of clinical records was documented.", True, "v3_pos_datasource_block"),
+        ("Results:\nProvenance of the dataset was briefly discussed.", False, "v3_neg_results_section"),
+    ],
+)
+def test_v3_data_provenance(text, should_match, test_id):
+    matches = find_data_provenance_v3(text)
+    assert bool(matches) == should_match, f"v3 failed for {test_id}"
 
 
-# -----------------------------
-# Test cases for v4 (algorithm + validation verb + nearby metric)
-# -----------------------------
-@pytest.mark.parametrize("text, expected, case_id", [
-    ("Algorithm validated with PPV 92% on chart review.", True, "v4_pos_ppv"),
-    ("Algorithm evaluated but no metric reported.", False, "v4_neg_no_metric"),
-    ("Algorithm applied to predict outcomes.", False, "v4_neg_no_validation"),
-])
-def test_find_algorithm_validation_v4(text, expected, case_id):
-    res = find_algorithm_validation_v4(text, window=6)
-    assert (len(res) > 0) == expected, f"v4 failed for ID: {case_id}"
+# ─────────────────────────────
+# v4 – provenance + dataset/file mention
+# ─────────────────────────────
+@pytest.mark.parametrize(
+    "text, should_match, test_id",
+    [
+        ("Data provenance was recorded for each raw data file.", True, "v4_pos_raw_data"),
+        ("The lineage was tracked in the clinical record system.", True, "v4_pos_clinical_record"),
+        ("Audit trail documented provenance, but no dataset mentioned.", False, "v4_neg_no_dataset"),
+    ],
+)
+def test_v4_data_provenance(text, should_match, test_id):
+    matches = find_data_provenance_v4(text, window=6)
+    assert bool(matches) == should_match, f"v4 failed for {test_id}"
 
 
-# -----------------------------
-# Test cases for v5 (tight template)
-# -----------------------------
-@pytest.mark.parametrize("text, expected, case_id", [
-    ("Algorithm validated against chart review; PPV 92%.", True, "v5_pos_template_ppv"),
-    ("Algorithm evaluated but without metrics.", False, "v5_neg_loose_phrase"),
-])
-def test_find_algorithm_validation_v5(text, expected, case_id):
-    res = find_algorithm_validation_v5(text)
-    assert (len(res) > 0) == expected, f"v5 failed for ID: {case_id}"
+# ─────────────────────────────
+# v5 – tight template
+# ─────────────────────────────
+@pytest.mark.parametrize(
+    "text, should_match, test_id",
+    [
+        ("Data provenance documented in audit trail; lineage maintained across transformations.", True, "v5_pos_template"),
+        ("The provenance was recorded and the audit trail ensured lineage.", True, "v5_pos_alt_template"),
+        ("Provenance mentioned but without audit trail or lineage.", False, "v5_neg_incomplete"),
+    ],
+)
+def test_v5_data_provenance(text, should_match, test_id):
+    matches = find_data_provenance_v5(text)
+    assert bool(matches) == should_match, f"v5 failed for {test_id}"

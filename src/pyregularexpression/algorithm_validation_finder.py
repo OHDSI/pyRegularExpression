@@ -59,10 +59,12 @@ def find_algorithm_validation_v3(text:str, block_chars:int=300):
         blocks.append((s,e))
     inside=lambda p:any(s<=p<e for s,e in blocks)
     out=[]
-    for m in ALGO_TERM_RE.finditer(text):
-        if inside(m.start()):
-            w_s,w_e=_char_span_to_word_span((m.start(),m.end()),token_spans)
-            out.append((w_s,w_e,m.group(0)))
+    for patt in [ALGO_TERM_RE, METRIC_TOKEN_RE]:
+        for m in patt.finditer(text):
+            if inside(m.start()):
+                w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
+                out.append((w_s, w_e, m.group(0)))
+
     return out
 
 def find_algorithm_validation_v4(text:str, window:int=6):
