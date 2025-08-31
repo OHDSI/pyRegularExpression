@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Collection of reusable regular‑expression patterns"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [{ name = "Gowtham Rao", email = "rao@ohdsi.org" }]
 keywords = ["regex", "regular expressions", "patterns"]
 classifiers = [
