@@ -71,3 +71,24 @@ from pyregularexpression.medical_code_extractor import extract_medical_codes
 def test_extract_medical_codes(text, expected_codes, test_id):
     result = extract_medical_codes(text)
     assert result == expected_codes, f"{test_id} failed: got {result}, expected {expected_codes}"
+
+
+def test_extract_medical_codes_unique():
+    text = "Codes E11.9, E11.9, J09.X1"
+    expected_codes = ["E11.9", "J09.X1"]
+    result = extract_medical_codes(text, unique=True)
+    assert result == expected_codes, "unique=True failed"
+
+
+def test_extract_medical_codes_offsets():
+    text = "Patient diagnosed with E11.9 and J09.X1."
+    expected_offsets = [(23, 28, 'E11.9'), (33, 39, 'J09.X1')]
+    result = extract_medical_codes(text, return_offsets=True)
+    assert result == expected_offsets, "return_offsets=True failed"
+
+
+def test_extract_medical_codes_unique_and_offsets():
+    text = "Codes E11.9, E11.9, J09.X1"
+    expected_offsets = [(6, 11, 'E11.9'), (20, 26, 'J09.X1')]
+    result = extract_medical_codes(text, unique=True, return_offsets=True)
+    assert result == expected_offsets, "unique=True and return_offsets=True failed"

@@ -29,7 +29,8 @@ BugTracker = "https://github.com/OHDSI/pyRegularExpression/issues"
 [project.optional-dependencies]
 # Optional dependency for Spark functionality
 spark = [
-    "pyspark"
+    "pyspark",
+    "pyarrow"
 ]
 # Dependencies for development and testing
 dev = [
