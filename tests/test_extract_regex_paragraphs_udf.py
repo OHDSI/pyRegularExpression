@@ -1,4 +1,5 @@
 import pytest
+pyspark = pytest.importorskip("pyspark")
 import pandas as pd
 import re
 from typing import Callable, List, Tuple

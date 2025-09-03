@@ -34,8 +34,13 @@ __all__: List[str] = []
 for _finder, _mod_name, _is_pkg in pkgutil.iter_modules(__path__):
     if _mod_name.startswith("_"):
         continue  # skip private helpers like _version.py
+    try:
+        _module: ModuleType = importlib.import_module(f".{_mod_name}", __name__)
+    except ModuleNotFoundError as e:
+        if e.name == "pyspark":
+            continue
+        raise
 
-    _module: ModuleType = importlib.import_module(f".{_mod_name}", __name__)
     _exports = getattr(_module, "__all__", None)
 
     if _exports is None:  # fall back to “everything that isn’t private”
