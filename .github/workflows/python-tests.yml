@@ -28,6 +28,15 @@ jobs:
         # Update this line to install both dev and spark extras
         pip install ".[dev,spark]"
 
+    - name: Lint with ruff
+      run: ruff check .
+
+    - name: Check formatting with black
+      run: black --check .
+
+    - name: Type check with mypy
+      run: mypy .
+
     - name: Run unit tests
       run: |
         pytest -ra --cov=pyregularexpression --cov-report=xml
