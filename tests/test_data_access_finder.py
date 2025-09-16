@@ -79,7 +79,11 @@ def test_find_data_access_v2(text, should_match, test_id):
             True,
             "v3_pos_heading_block",
         ),
-        ("Data Sharing:\nData are deposited in Zenodo.\n\n", True, "v3_pos_data_sharing"),
+        (
+            "Data Sharing:\nData are deposited in Zenodo.\n\n",
+            True,
+            "v3_pos_data_sharing",
+        ),
         (
             "Results:\nThe dataset is available upon request.",
             False,

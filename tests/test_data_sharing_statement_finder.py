@@ -51,7 +51,11 @@ def test_find_data_sharing_statement_v1(text, expected, case_id):
         ),
         ("Data available in repository.", True, "v2_pos_available_repo"),
         ("Data sharing statement included.", False, "v2_neg_no_verb"),
-        ("Zenodo repository mentioned without dataset.", False, "v2_neg_no_availability"),
+        (
+            "Zenodo repository mentioned without dataset.",
+            False,
+            "v2_neg_no_availability",
+        ),
     ],
 )
 def test_find_data_sharing_statement_v2(text, expected, case_id):

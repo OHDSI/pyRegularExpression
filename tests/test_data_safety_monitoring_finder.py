@@ -29,7 +29,11 @@ from pyregularexpression.data_safety_monitoring_finder import (
             False,
             "v1_neg_data_quality_trap",
         ),
-        ("Safety sheet was submitted by the investigators.", False, "v1_neg_sheet_trap"),
+        (
+            "Safety sheet was submitted by the investigators.",
+            False,
+            "v1_neg_sheet_trap",
+        ),
     ],
 )
 def test_find_data_safety_monitoring_v1(text, expected, case_id):
@@ -64,7 +68,11 @@ def test_find_data_safety_monitoring_v2(text, expected, case_id):
 @pytest.mark.parametrize(
     "text, expected, case_id",
     [
-        ("Data Safety Monitoring:\nThe DSMB met quarterly.", True, "v3_pos_heading_dsmb"),
+        (
+            "Data Safety Monitoring:\nThe DSMB met quarterly.",
+            True,
+            "v3_pos_heading_dsmb",
+        ),
         (
             "DSMB - Independent committee reviewed adverse events.",
             True,

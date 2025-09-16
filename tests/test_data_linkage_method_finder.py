@@ -24,7 +24,11 @@ from pyregularexpression.data_linkage_method_finder import (
             True,
             "v1_pos_master_patient_index",
         ),
-        ("We examined the link between exposure and outcome.", False, "v1_neg_link_trap"),
+        (
+            "We examined the link between exposure and outcome.",
+            False,
+            "v1_neg_link_trap",
+        ),
         (
             "Hyperlink to supplementary materials was provided.",
             False,
@@ -118,7 +122,10 @@ def test_find_data_linkage_method_v4(text, expected, case_id):
     "text, expected, case_id",
     [
         (
-            "Hospital admissions were probabilistically linked to death-registry data using date of birth.",
+            (
+                "Hospital admissions were probabilistically linked to death-registry"
+                " data using date of birth."
+            ),
             True,
             "v5_pos_template_probabilistic",
         ),

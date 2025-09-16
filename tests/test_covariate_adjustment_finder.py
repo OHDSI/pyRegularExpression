@@ -8,7 +8,9 @@ Includes:
   and template-based)
 - All examples drawn from PubMed / OHDSI-style reporting of covariate adjustment
 """
+
 import pytest
+
 from pyregularexpression.covariate_adjustment_finder import (
     find_covariate_adjustment_v1,
     find_covariate_adjustment_v2,
@@ -28,10 +30,7 @@ from pyregularexpression.covariate_adjustment_finder import (
         # Positive PubMed/OHDSI-style examples
         ("Hazard ratios were adjusted for age and sex.", True, "v1_pos_adjusted"),
         (
-            (
-                "A multivariable logistic regression model was fitted including"
-                " baseline covariates."
-            ),
+            "A multivariable logistic regression model was fitted including baseline covariates.",
             True,
             "v1_pos_multivariable",
         ),
@@ -78,10 +77,7 @@ def test_find_covariate_adjustment_v1(text, should_match, test_id):
             "v2_pos_for_covariates",
         ),
         (
-            (
-                "We controlled with baseline variables including diabetes and"
-                " hypertension."
-            ),
+            "We controlled with baseline variables including diabetes and hypertension.",
             True,
             "v2_pos_with_covariates",
         ),

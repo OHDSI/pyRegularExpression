@@ -9,7 +9,9 @@ Includes:
 - All examples are based on biomedical competing-risk usage (Fine-Gray,
   sub-hazard ratio, cumulative incidence).
 """
+
 import pytest
+
 from pyregularexpression.competing_risk_analysis_finder import (
     find_competing_risk_analysis_v1,
     find_competing_risk_analysis_v2,
@@ -107,11 +109,7 @@ def test_find_competing_risk_analysis_v2(text, should_match, test_id):
             True,
             "v3_pos_heading_competing",
         ),
-        (
-            "Fine-Gray:\nThe sub-hazard ratio was estimated.",
-            True,
-            "v3_pos_heading_finegray",
-        ),
+        ("Fine-Gray:\nThe sub-hazard ratio was estimated.", True, "v3_pos_heading_finegray"),
         # Negative: correct cue outside a heading
         (
             "Results:\nCompeting risk analysis was mentioned here.",
@@ -141,10 +139,7 @@ def test_find_competing_risk_analysis_v3(text, should_match, test_id):
             "v4_pos_fitted_finegray_shr",
         ),
         (
-            (
-                "Competing risk analysis was performed using the cumulative incidence"
-                " function."
-            ),
+            "Competing risk analysis was performed using the cumulative incidence function.",
             True,
             "v4_pos_cif",
         ),

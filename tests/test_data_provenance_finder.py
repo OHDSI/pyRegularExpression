@@ -75,7 +75,11 @@ def test_v1_data_provenance(text, should_match, test_id):
             False,
             "v2_neg_no_verb",
         ),
-        ("Lineage was carefully recorded across steps.", True, "v2_pos_lineage_recorded"),
+        (
+            "Lineage was carefully recorded across steps.",
+            True,
+            "v2_pos_lineage_recorded",
+        ),
     ],
 )
 def test_v2_data_provenance(text, should_match, test_id):
@@ -146,7 +150,10 @@ def test_v4_data_provenance(text, should_match, test_id):
     "text, should_match, test_id",
     [
         (
-            "Data provenance documented in audit trail; lineage maintained across transformations.",
+            (
+                "Data provenance documented in audit trail; lineage maintained across"
+                " transformations."
+            ),
             True,
             "v5_pos_template",
         ),

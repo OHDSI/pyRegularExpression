@@ -9,6 +9,7 @@ Includes:
 """
 
 import pytest
+
 from pyregularexpression.changes_to_outcomes_finder import (
     find_changes_to_outcomes_v1,
     find_changes_to_outcomes_v2,
@@ -52,11 +53,7 @@ from pyregularexpression.changes_to_outcomes_finder import (
             False,
             "v1_trap_significant_change",
         ),
-        (
-            "Outcome changes were noted in historical trials.",
-            False,
-            "v1_trap_historical",
-        ),
+        ("Outcome changes were noted in historical trials.", False, "v1_trap_historical"),
         ("No modifications were made.", False, "v1_neg_no_modification"),
     ],
 )
@@ -114,10 +111,7 @@ def test_find_changes_to_outcomes_v2(text, should_match, test_id):
     [
         # Positive examples
         (
-            (
-                "Protocol amendments:\nThe primary outcome was changed due to interim"
-                " analysis.\n"
-            ),
+            "Protocol amendments:\nThe primary outcome was changed due to interim analysis.\n",
             True,
             "v3_pos_heading_change",
         ),
@@ -155,10 +149,7 @@ def test_find_changes_to_outcomes_v3(text, should_match, test_id):
             "v4_pos_due_to_low_recruitment",
         ),
         (
-            (
-                "Because of safety concerns, we amended the secondary outcome during"
-                " the trial."
-            ),
+            "Because of safety concerns, we amended the secondary outcome during the trial.",
             True,
             "v4_pos_because_of_safety",
         ),
@@ -190,18 +181,12 @@ def test_find_changes_to_outcomes_v4(text, should_match, test_id):
     [
         # Positive examples
         (
-            (
-                "Due to low event rate, the primary outcome was changed from OS to DFS"
-                " midway."
-            ),
+            "Due to low event rate, the primary outcome was changed from OS to DFS midway.",
             True,
             "v5_pos_template_low_event",
         ),
         (
-            (
-                "Because of slow accrual, the primary outcome was changed from PFS to"
-                " DFS after 50 events."
-            ),
+            "Because of slow accrual, the primary outcome was changed from PFS to DFS after 50 events.",
             True,
             "v5_pos_template_slow_accrual",
         ),

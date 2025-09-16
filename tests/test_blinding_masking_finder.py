@@ -41,10 +41,8 @@ SMOKE_EXAMPLES = {
     "text, should_match, test_id",
     [
         (
-            (
-                "Double-blind study: participants and assessors were unaware of"
-                " assignments."
-            ),
+            "Double-blind study: participants and assessors were unaware of"
+            " assignments.",
             True,
             "v1_hit_double",
         ),
@@ -75,10 +73,8 @@ def test_find_blinding_masking_v1(text, should_match, test_id):
     "text, should_match, test_id",
     [
         (
-            (
-                "Double-blind study: participants and assessors were unaware of"
-                " assignments."
-            ),
+            "Double-blind study: participants and assessors were unaware of"
+            " assignments.",
             True,
             "v2_hit_double_roles",
         ),
@@ -171,10 +167,8 @@ def test_find_blinding_masking_v4(text, should_match, test_id):
     "text, should_match, test_id",
     [
         (
-            (
-                "Double-blind study: participants and assessors were unaware of"
-                " assignments."
-            ),
+            "Double-blind study: participants and assessors were unaware of"
+            " assignments.",
             True,
             "v5_hit_double_template",
         ),
