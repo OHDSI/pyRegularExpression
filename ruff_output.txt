@@ -1,0 +1,211 @@
+E501 Line too long (104 > 88)
+  --> tests/test_attrition_criteria_finder.py:29:89
+   |
+27 |     [
+28 |         # Positive examples
+29 |         ("Ten participants were lost to follow-up during the trial.", True, "v1_pos_lost_to_follow_up"),
+   |                                                                                         ^^^^^^^^^^^^^^^^
+30 |         ("Three patients withdrew consent after enrollment.", True, "v1_pos_withdrew_consent"),
+31 |         ("Five subjects dropped out due to adverse events.", True, "v1_pos_dropped_out"),
+   |
+
+E501 Line too long (95 > 88)
+  --> tests/test_attrition_criteria_finder.py:30:89
+   |
+28 |         # Positive examples
+29 |         ("Ten participants were lost to follow-up during the trial.", True, "v1_pos_lost_to_follow_up"),
+30 |         ("Three patients withdrew consent after enrollment.", True, "v1_pos_withdrew_consent"),
+   |                                                                                         ^^^^^^^
+31 |         ("Five subjects dropped out due to adverse events.", True, "v1_pos_dropped_out"),
+   |
+
+E501 Line too long (89 > 88)
+  --> tests/test_attrition_criteria_finder.py:31:89
+   |
+29 |         ("Ten participants were lost to follow-up during the trial.", True, "v1_pos_lost_to_follow_up"),
+30 |         ("Three patients withdrew consent after enrollment.", True, "v1_pos_withdrew_consent"),
+31 |         ("Five subjects dropped out due to adverse events.", True, "v1_pos_dropped_out"),
+   |                                                                                         ^
+32 |
+33 |         # Trap examples
+   |
+
+E501 Line too long (98 > 88)
+  --> tests/test_attrition_criteria_finder.py:34:89
+   |
+33 |         # Trap examples
+34 |         ("Screen failures were excluded before randomization.", False, "v1_trap_screen_failures"),
+   |                                                                                         ^^^^^^^^^^
+35 |         ("Patients were censored at transplant or death.", False, "v1_trap_censored_event"),
+36 |         ("Exit criteria included severe disease.", False, "v1_trap_exit_criteria"),
+   |
+
+E501 Line too long (92 > 88)
+  --> tests/test_attrition_criteria_finder.py:35:89
+   |
+33 |         # Trap examples
+34 |         ("Screen failures were excluded before randomization.", False, "v1_trap_screen_failures"),
+35 |         ("Patients were censored at transplant or death.", False, "v1_trap_censored_event"),
+   |                                                                                         ^^^^
+36 |         ("Exit criteria included severe disease.", False, "v1_trap_exit_criteria"),
+37 |     ]
+   |
+
+E501 Line too long (107 > 88)
+  --> tests/test_attrition_criteria_finder.py:51:89
+   |
+49 |     [
+50 |         # Positive examples
+51 |         ("Ten patients dropped out during follow-up due to side effects.", True, "v2_pos_during_followup"),
+   |                                                                                         ^^^^^^^^^^^^^^^^^^^
+52 |         ("Seven participants withdrew consent during the study.", True, "v2_pos_during_study"),
+   |
+
+E501 Line too long (95 > 88)
+  --> tests/test_attrition_criteria_finder.py:52:89
+   |
+50 |         # Positive examples
+51 |         ("Ten patients dropped out during follow-up due to side effects.", True, "v2_pos_during_followup"),
+52 |         ("Seven participants withdrew consent during the study.", True, "v2_pos_during_study"),
+   |                                                                                         ^^^^^^^
+53 |
+54 |         # Trap examples and negatives
+   |
+
+E501 Line too long (90 > 88)
+  --> tests/test_attrition_criteria_finder.py:55:89
+   |
+54 |         # Trap examples and negatives
+55 |         ("Participants were excluded at screening.", False, "v2_trap_screening_excluded"),
+   |                                                                                         ^^
+56 |         ("Dropped out due to insurance issues before enrollment.", False, "v2_trap_before_enrollment"),
+57 |         ("Lost contact with some participants post-study.", False, "v2_neg_after_study_context"),
+   |
+
+E501 Line too long (103 > 88)
+  --> tests/test_attrition_criteria_finder.py:56:89
+   |
+54 |         # Trap examples and negatives
+55 |         ("Participants were excluded at screening.", False, "v2_trap_screening_excluded"),
+56 |         ("Dropped out due to insurance issues before enrollment.", False, "v2_trap_before_enrollment"),
+   |                                                                                         ^^^^^^^^^^^^^^^
+57 |         ("Lost contact with some participants post-study.", False, "v2_neg_after_study_context"),
+58 |     ]
+   |
+
+E501 Line too long (97 > 88)
+  --> tests/test_attrition_criteria_finder.py:57:89
+   |
+55 |         ("Participants were excluded at screening.", False, "v2_trap_screening_excluded"),
+56 |         ("Dropped out due to insurance issues before enrollment.", False, "v2_trap_before_enrollment"),
+57 |         ("Lost contact with some participants post-study.", False, "v2_neg_after_study_context"),
+   |                                                                                         ^^^^^^^^^
+58 |     ]
+59 | )
+   |
+
+E501 Line too long (110 > 88)
+  --> tests/test_attrition_criteria_finder.py:72:89
+   |
+70 |     [
+71 |         # Positive examples
+72 |         ("Attrition:\nSeven subjects dropped out due to side effects.\n\n", True, "v3_pos_attrition_heading"),
+   |                                                                                         ^^^^^^^^^^^^^^^^^^^^^^
+73 |         ("Loss to follow-up:\nThree patients withdrew consent.\n\n", True, "v3_pos_loss_heading"),
+   |
+
+E501 Line too long (98 > 88)
+  --> tests/test_attrition_criteria_finder.py:73:89
+   |
+71 |         # Positive examples
+72 |         ("Attrition:\nSeven subjects dropped out due to side effects.\n\n", True, "v3_pos_attrition_heading"),
+73 |         ("Loss to follow-up:\nThree patients withdrew consent.\n\n", True, "v3_pos_loss_heading"),
+   |                                                                                         ^^^^^^^^^^
+74 |
+75 |         # Negative: correct cue outside block or in unrelated section
+   |
+
+E501 Line too long (106 > 88)
+  --> tests/test_attrition_criteria_finder.py:76:89
+   |
+75 |         # Negative: correct cue outside block or in unrelated section
+76 |         ("Results:\nFive participants withdrew consent during follow-up.", False, "v3_neg_wrong_heading"),
+   |                                                                                         ^^^^^^^^^^^^^^^^^^
+77 |         ("Cohort characteristics:\nSome participants were lost.", False, "v3_neg_not_attrition_heading"),
+78 |     ]
+   |
+
+E501 Line too long (105 > 88)
+  --> tests/test_attrition_criteria_finder.py:77:89
+   |
+75 |         # Negative: correct cue outside block or in unrelated section
+76 |         ("Results:\nFive participants withdrew consent during follow-up.", False, "v3_neg_wrong_heading"),
+77 |         ("Cohort characteristics:\nSome participants were lost.", False, "v3_neg_not_attrition_heading"),
+   |                                                                                         ^^^^^^^^^^^^^^^^^
+78 |     ]
+79 | )
+   |
+
+E501 Line too long (89 > 88)
+  --> tests/test_attrition_criteria_finder.py:85:89
+   |
+84 | # ─────────────────────────────
+85 | # Lighter Tests for v4 – Cue + context + numeric evidence (e.g., "10 participants", "5%")
+   |                                                                                         ^
+86 | # ─────────────────────────────
+   |
+
+E501 Line too long (105 > 88)
+  --> tests/test_attrition_criteria_finder.py:92:89
+   |
+90 |     [
+91 |         # Positive examples
+92 |         ("Ten participants were lost to follow-up during the study.", True, "v4_pos_count_during_study"),
+   |                                                                                         ^^^^^^^^^^^^^^^^^
+93 |         ("5% of patients withdrew consent during follow-up.", True, "v4_pos_percent_with_context"),
+   |
+
+E501 Line too long (99 > 88)
+  --> tests/test_attrition_criteria_finder.py:93:89
+   |
+91 |         # Positive examples
+92 |         ("Ten participants were lost to follow-up during the study.", True, "v4_pos_count_during_study"),
+93 |         ("5% of patients withdrew consent during follow-up.", True, "v4_pos_percent_with_context"),
+   |                                                                                         ^^^^^^^^^^^
+94 |
+95 |         # Negative examples
+   |
+
+E501 Line too long (101 > 88)
+   --> tests/test_attrition_criteria_finder.py:114:89
+    |
+112 |         # Positive examples
+113 |         ("12 participants were lost to follow-up.", True, "v5_pos_participants_lost"),
+114 |         ("Withdrew consent during follow-up due to adverse events.", True, "v5_pos_withdrew_during"),
+    |                                                                                         ^^^^^^^^^^^^^
+115 |
+116 |         # Negative examples
+    |
+
+E501 Line too long (96 > 88)
+   --> tests/test_attrition_criteria_finder.py:117:89
+    |
+116 |         # Negative examples
+117 |         ("Patients lost their ID cards during follow-up.", False, "v5_neg_irrelevant_use_lost"),
+    |                                                                                         ^^^^^^^^
+118 |         ("Consent withdrawn prior to randomization.", False, "v5_neg_pre_randomization"),
+119 |     ]
+    |
+
+E501 Line too long (89 > 88)
+   --> tests/test_attrition_criteria_finder.py:118:89
+    |
+116 |         # Negative examples
+117 |         ("Patients lost their ID cards during follow-up.", False, "v5_neg_irrelevant_use_lost"),
+118 |         ("Consent withdrawn prior to randomization.", False, "v5_neg_pre_randomization"),
+    |                                                                                         ^
+119 |     ]
+120 | )
+    |
+
+Found 20 errors.

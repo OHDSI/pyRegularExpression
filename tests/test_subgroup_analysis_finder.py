@@ -9,6 +9,7 @@ Covers five variants (v1–v5):
     • v5 – tight template
 """
 import pytest
+
 from pyregularexpression.subgroup_analysis_finder import (
     find_subgroup_analysis_v1,
     find_subgroup_analysis_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.subgroup_analysis_finder import (
     find_subgroup_analysis_v4,
     find_subgroup_analysis_v5,
 )
+
 
 # ───────────────────────────────
 # Tests for v1 (High Recall)

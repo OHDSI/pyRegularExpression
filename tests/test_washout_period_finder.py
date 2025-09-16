@@ -7,6 +7,7 @@ anchor-aware (v4), and strict-template (v5) tests.
 """
 
 import pytest
+
 from pyregularexpression.washout_period_finder import (
     find_washout_period_v1,
     find_washout_period_v2,
@@ -14,6 +15,7 @@ from pyregularexpression.washout_period_finder import (
     find_washout_period_v4,
     find_washout_period_v5,
 )
+
 
 # ─────────────────────────────────────────────
 # Robust Tests for v1 – high recall cues only

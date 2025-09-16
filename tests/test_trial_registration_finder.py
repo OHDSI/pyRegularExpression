@@ -8,6 +8,7 @@ culminating in strict template-based identification.
 """
 
 import pytest
+
 from pyregularexpression.trial_registration_finder import (
     find_trial_registration_v1,
     find_trial_registration_v2,
@@ -15,6 +16,7 @@ from pyregularexpression.trial_registration_finder import (
     find_trial_registration_v4,
     find_trial_registration_v5,
 )
+
 
 # ─────────────────────────────
 # Tests for v1 – high recall + trap filter

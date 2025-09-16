@@ -9,6 +9,7 @@ Covers five variants (v1–v5):
     • v5 – tight template (explicit definition/classification statements)
 """
 import pytest
+
 from pyregularexpression.severity_definition_finder import (
     find_severity_definition_v1,
     find_severity_definition_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.severity_definition_finder import (
     find_severity_definition_v4,
     find_severity_definition_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

@@ -8,6 +8,7 @@ using clinical/medical-style study objective/hypothesis statements.
 """
 
 import pytest
+
 from pyregularexpression.objective_hypothesis_finder import (
     find_objective_hypothesis_v1,
     find_objective_hypothesis_v2,
@@ -15,6 +16,7 @@ from pyregularexpression.objective_hypothesis_finder import (
     find_objective_hypothesis_v4,
     find_objective_hypothesis_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

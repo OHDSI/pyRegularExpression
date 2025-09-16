@@ -8,6 +8,7 @@ using clinical/medical code strings (ICD, CPT, LOINC, RxNorm, SNOMED, etc.).
 """
 
 import pytest
+
 from pyregularexpression.medical_code_finder import (
     find_medical_code_v1,
     find_medical_code_v2,
@@ -15,6 +16,7 @@ from pyregularexpression.medical_code_finder import (
     find_medical_code_v4,
     find_medical_code_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

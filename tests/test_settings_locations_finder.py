@@ -9,6 +9,7 @@ Ladder v1–v5:
     • v5 – tight template: “The study was conducted at [facility] in [city], [country]”
 """
 import pytest
+
 from pyregularexpression.settings_locations_finder import (
     find_settings_location_v1,
     find_settings_location_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.settings_locations_finder import (
     find_settings_location_v4,
     find_settings_location_v5,
 )
+
 
 # ─────────────────────────────
 # v1 – high recall

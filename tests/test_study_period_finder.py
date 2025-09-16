@@ -9,6 +9,7 @@ Covers five variants (v1–v5):
     • v5 – tight template
 """
 import pytest
+
 from pyregularexpression.study_period_finder import (
     find_study_period_v1,
     find_study_period_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.study_period_finder import (
     find_study_period_v4,
     find_study_period_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

@@ -1,32 +1,46 @@
-"""follow_up_period_finder.py – precision/recall ladder for *follow‑up period* definitions.
+"""
+follow_up_period_finder.py – p/r ladder for *follow‑up period* definitions.
 
 Five variants (v1‑v5):
 
     • v1 – high recall: any follow‑up/followed cue
     • v2 – cue + explicit numeric duration nearby
     • v3 – only inside a *Follow‑up period / Observation period* heading block
-    • v4 – v2 plus qualifier words (median/mean/followed for), excludes single‑visit traps
-    • v5 – tight template: “Median follow‑up was 5 years”, “participants were followed for 24 months”, etc.
+    • v4 – v2 plus qualifier words (median/mean/followed for), excludes
+      single‑visit traps
+    • v5 – tight template: “Median follow‑up was 5 years”, “participants were
+      followed for 24 months”, etc.
 
-Each function returns a list of tuples: (start_token_idx, end_token_idx, matched_snippet)
+Each function returns a list of tuples:
+(start_token_idx, end_token_idx, matched_snippet)
 """
 from __future__ import annotations
+
 import re
-from typing import List, Tuple, Sequence, Dict, Callable
+from collections.abc import Callable, Sequence
 
 # ─────────────────────────────
 # 0.  Shared utilities
 # ─────────────────────────────
 TOKEN_RE = re.compile(r"\S+")
 
-def _token_spans(text: str) -> List[Tuple[int, int]]:
+
+def _token_spans(text: str) -> list[tuple[int, int]]:
     return [(m.start(), m.end()) for m in TOKEN_RE.finditer(text)]
 
-def _char_span_to_word_span(span: Tuple[int, int], token_spans: Sequence[Tuple[int, int]]) -> Tuple[int, int]:
+
+def _char_span_to_word_span(
+    span: tuple[int, int], token_spans: Sequence[tuple[int, int]]
+) -> tuple[int, int]:
     s_char, e_char = span
     w_start = next(i for i, (s, e) in enumerate(token_spans) if s <= s_char < e)
-    w_end = next(i for i, (s, e) in reversed(list(enumerate(token_spans))) if s < e_char <= e)
+    w_end = next(
+        i
+        for i, (s, e) in reversed(list(enumerate(token_spans)))
+        if s < e_char <= e
+    )
     return w_start, w_end
+
 
 # ─────────────────────────────
 # 1.  Regex assets
@@ -43,27 +57,33 @@ DURATION_RE = re.compile(r"\b\d+\s*(?:day|week|month|year)s?\b", re.I)
 QUALIFIER_RE = re.compile(r"\b(?:median|mean|average|followed\s+for)\b", re.I)
 
 HEADING_FOLLOW_RE = re.compile(
-    rf"(?m)^(?:follow{HYPHEN}?up\s+period|observation\s+period|duration\s+of\s+follow{HYPHEN}?up)\s*[:\-]?\s*$",
+    rf"(?m)^(?:follow{HYPHEN}?up\s+period|observation\s+period|duration\s+of\s+"
+    rf"follow{HYPHEN}?up)\s*[:\-]?\s*$",
     re.I,
 )
 
 TRAP_RE = re.compile(
-    rf"\b(?:follow{HYPHEN}?up\s+visit|clinic\s+visit|scheduled\s+follow{HYPHEN}?up)\b",
+    rf"\b(?:follow{HYPHEN}?up\s+visit|clinic\s+visit|scheduled\s+"
+    rf"follow{HYPHEN}?up)\b",
     re.I,
 )
 
 TIGHT_TEMPLATE_RE = re.compile(
-    rf"(?:median|mean|average)?\s*follow{HYPHEN}?up\s+(?:was\s+)?\d+\s*(?:day|week|month|year)s?\b"
+    rf"(?:median|mean|average)?\s*follow{HYPHEN}?up\s+(?:was\s+)?\d+\s*"
+    r"(?:day|week|month|year)s?\b"
     r"|followed\s+for\s+\d+\s*(?:day|week|month|year)s?",
     re.I,
 )
 
+
 # ─────────────────────────────
 # 2.  Helper
 # ─────────────────────────────
-def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, int, str]]:
+def _collect(
+    patterns: Sequence[re.Pattern[str]], text: str
+) -> list[tuple[int, int, str]]:
     token_spans = _token_spans(text)
-    out: List[Tuple[int, int, str]] = []
+    out: list[tuple[int, int, str]] = []
     for patt in patterns:
         for m in patt.finditer(text):
             if TRAP_RE.search(m.group(0)):
@@ -72,28 +92,32 @@ def _collect(patterns: Sequence[re.Pattern[str]], text: str) -> List[Tuple[int, 
             out.append((w_s, w_e, m.group(0)))
     return out
 
-def _char_span_to_char_index(span: Tuple[int,int], text: str) -> int:
+
+def _char_span_to_char_index(span: tuple[int, int], text: str) -> int:
     # If you’re storing char‑spans alongside token‑spans anyway, use that.
     # But since _collect already knows the char‐span, you could also
     # return m.end() directly there instead of (w_s, w_e).
     return span[1]  # end‐char index
 
+
 # ─────────────────────────────
 # 3.  Finder variants
 # ─────────────────────────────
-def find_follow_up_period_v1(text: str) -> List[Tuple[int,int,str]]:
-    # Tier 1 – high recall, but if the entire text mentions a visit-trap, bail out immediately
+def find_follow_up_period_v1(text: str) -> list[tuple[int, int, str]]:
+    """Tier 1 – high recall, but if visit-trap, bail out immediately."""
     if TRAP_RE.search(text):
         return []
 
-    results: List[Tuple[int,int,str]] = []
+    results: list[tuple[int, int, str]] = []
     for m in FOLLOW_UP_CUE_RE.finditer(text):
         snippet = m.group(0)
         # 1) Skip any mini‐trap inside the match itself
         if TRAP_RE.search(snippet):
             continue
         # 2) If it’s exactly “followed”, require it to be followed by “for”
-        if snippet.lower() == 'followed' and not re.match(r"\s+for\b", text[m.end():], re.I):
+        if snippet.lower() == "followed" and not re.match(
+            r"\s+for\b", text[m.end() :], re.I
+        ):
             continue
         # 3) Map char indices to token indices, then record
         token_spans = _token_spans(text)
@@ -101,13 +125,13 @@ def find_follow_up_period_v1(text: str) -> List[Tuple[int,int,str]]:
         results.append((w_s, w_e, snippet))
     return results
 
+
 def find_follow_up_period_v2(text: str, window: int = 5):
     token_spans = _token_spans(text)
     # find all durations anywhere in the text, map their start positions to word‑indices
-    dur_spans = [ (m.start(),m.end()) for m in DURATION_RE.finditer(text) ]
-    dur_idx   = {
-        _char_span_to_word_span(span, token_spans)[0]
-        for span in dur_spans
+    dur_spans = [(m.start(), m.end()) for m in DURATION_RE.finditer(text)]
+    dur_idx = {
+        _char_span_to_word_span(span, token_spans)[0] for span in dur_spans
     }
 
     out = []
@@ -118,33 +142,35 @@ def find_follow_up_period_v2(text: str, window: int = 5):
             out.append((w_s, w_e, m.group(0)))
     return out
 
+
 def find_follow_up_period_v3(text: str, block_chars: int = 400):
     token_spans = _token_spans(text)
     # first locate and filter heading blocks
     blocks = []
     for h in HEADING_FOLLOW_RE.finditer(text):
         start = h.end()
-        nxt   = text.find("\n\n", start)
-        end   = nxt if 0 <= nxt - start <= block_chars else start + block_chars
+        nxt = text.find("\n\n", start)
+        end = nxt if 0 <= nxt - start <= block_chars else start + block_chars
         # require at least one duration in that slice
         if DURATION_RE.search(text[start:end]):
             blocks.append((start, end))
 
-    def inside(pos): return any(s <= pos < e for s,e in blocks)
+    def inside(pos):
+        return any(s <= pos < e for s, e in blocks)
 
     out = []
     for m in FOLLOW_UP_CUE_RE.finditer(text):
         if inside(m.start()):
-            w_s, w_e = _char_span_to_word_span((m.start(),m.end()), token_spans)
+            w_s, w_e = _char_span_to_word_span((m.start(), m.end()), token_spans)
             out.append((w_s, w_e, m.group(0)))
     return out
 
+
 def find_follow_up_period_v4(text: str, window: int = 6):
     token_spans = _token_spans(text)
-    qual_spans = [(m.start(),m.end()) for m in QUALIFIER_RE.finditer(text)]
-    qual_idx   = {
-        _char_span_to_word_span(span, token_spans)[0]
-        for span in qual_spans
+    qual_spans = [(m.start(), m.end()) for m in QUALIFIER_RE.finditer(text)]
+    qual_idx = {
+        _char_span_to_word_span(span, token_spans)[0] for span in qual_spans
     }
 
     matches = find_follow_up_period_v2(text, window=window)
@@ -154,14 +180,18 @@ def find_follow_up_period_v4(text: str, window: int = 6):
             out.append((w_s, w_e, snip))
     return out
 
-def find_follow_up_period_v5(text: str) -> List[Tuple[int, int, str]]:
+
+def find_follow_up_period_v5(text: str) -> list[tuple[int, int, str]]:
     """Tier 5 – tight template form."""
     return _collect([TIGHT_TEMPLATE_RE], text)
+
 
 # ─────────────────────────────
 # 4.  Public mapping & exports
 # ─────────────────────────────
-FOLLOW_UP_PERIOD_FINDERS: Dict[str, Callable[[str], List[Tuple[int, int, str]]]] = {
+FOLLOW_UP_PERIOD_FINDERS: dict[
+    str, Callable[[str], list[tuple[int, int, str]]]
+] = {
     "v1": find_follow_up_period_v1,
     "v2": find_follow_up_period_v2,
     "v3": find_follow_up_period_v3,

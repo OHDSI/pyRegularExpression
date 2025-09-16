@@ -11,6 +11,7 @@ Variants v1–v5:
 """
 
 import pytest
+
 from pyregularexpression.propensity_score_method_finder import (
     find_propensity_score_method_v1,
     find_propensity_score_method_v2,
@@ -18,6 +19,7 @@ from pyregularexpression.propensity_score_method_finder import (
     find_propensity_score_method_v4,
     find_propensity_score_method_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

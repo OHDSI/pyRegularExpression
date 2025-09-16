@@ -8,6 +8,7 @@ using clinical/medical-style "numbers analyzed" statements.
 """
 
 import pytest
+
 from pyregularexpression.numbers_analyzed_finder import (
     find_numbers_analyzed_v1,
     find_numbers_analyzed_v2,
@@ -15,6 +16,7 @@ from pyregularexpression.numbers_analyzed_finder import (
     find_numbers_analyzed_v4,
     find_numbers_analyzed_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

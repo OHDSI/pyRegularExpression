@@ -24,9 +24,8 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from types import ModuleType
-from typing import List
 
-__all__: List[str] = []
+__all__: list[str] = []
 
 # ────────────────────────────────────────────────────────────────
 # 1.  Dynamically pull in every immediate child module

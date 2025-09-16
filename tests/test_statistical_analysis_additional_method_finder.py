@@ -9,6 +9,7 @@ Covers five variants (v1–v5):
     • v5 – tight template: “Secondary outcomes analysed with logistic regression; age subgroups examined.”
 """
 import pytest
+
 from pyregularexpression.statistical_analysis_additional_method_finder import (
     find_statistical_analysis_additional_method_v1,
     find_statistical_analysis_additional_method_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.statistical_analysis_additional_method_finder import (
     find_statistical_analysis_additional_method_v4,
     find_statistical_analysis_additional_method_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

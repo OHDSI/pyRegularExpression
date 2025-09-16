@@ -9,6 +9,7 @@ Covers five variants (v1–v5):
     • v5 – tight template
 """
 import pytest
+
 from pyregularexpression.risk_of_bias_assessment_finder import (
     find_risk_of_bias_assessment_v1,
     find_risk_of_bias_assessment_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.risk_of_bias_assessment_finder import (
     find_risk_of_bias_assessment_v4,
     find_risk_of_bias_assessment_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)
