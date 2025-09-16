@@ -9,6 +9,7 @@ Covers five variants (v1–v5):
     • v5 – tight template form
 """
 import pytest
+
 from pyregularexpression.recruitment_timeline_finder import (
     find_recruitment_timeline_v1,
     find_recruitment_timeline_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.recruitment_timeline_finder import (
     find_recruitment_timeline_v4,
     find_recruitment_timeline_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

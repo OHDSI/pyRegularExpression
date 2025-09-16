@@ -9,6 +9,7 @@ Variants (v1–v5):
     • v5 – tight template (structured dosage/regimen expression)
 """
 import pytest
+
 from pyregularexpression.treatment_definition_finder import (
     find_treatment_definition_v1,
     find_treatment_definition_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.treatment_definition_finder import (
     find_treatment_definition_v4,
     find_treatment_definition_v5,
 )
+
 
 # ───────────────────────────────
 # v1 – High Recall (cue only)

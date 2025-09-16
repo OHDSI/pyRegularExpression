@@ -1,10 +1,13 @@
 from __future__ import annotations
-from dataclasses import dataclass       # stdlib ≥3.7 :contentReference[oaicite:1]{index=1}
-from typing import Callable, Iterable, List, Tuple, Dict
-import bisect, functools, re
 
-import nltk                             # relies on PunktSentenceTokenizer :contentReference[oaicite:2]{index=2}
+import bisect
+import functools
+import re
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass  # stdlib ≥3.7 :contentReference[oaicite:1]{index=1}
+
 from nltk.tokenize import PunktSentenceTokenizer
+
 
 # -------------------------------------------------------------------
 @dataclass(slots=True)
@@ -12,10 +15,10 @@ class SplitResult:
     """Richer return value for `split_text_by_filter`."""
     matched: str                 # concatenated context window (LLM payload)
     notmatched: str              # everything that was dropped
-    sentences: List[str]         # full article, in order
-    mask: List[bool]             # True → kept, False → dropped
-    matched_ix: List[int]        # indices of kept sentences
-    hits: List[Tuple[int, str, str]]  # (sent_idx, finder_name, hit)
+    sentences: list[str]         # full article, in order
+    mask: list[bool]             # True → kept, False → dropped
+    matched_ix: list[int]        # indices of kept sentences
+    hits: list[tuple[int, str, str]]  # (sent_idx, finder_name, hit)
 
     # convenience iterators
     def kept_sentences(self):
@@ -31,7 +34,7 @@ _TOKEN_RE = re.compile(r"\S+")
 def _tokenizer() -> PunktSentenceTokenizer:
     return PunktSentenceTokenizer()
 
-def _token_spans(text: str) -> List[Tuple[int, int]]:
+def _token_spans(text: str) -> list[tuple[int, int]]:
     return [(m.start(), m.end()) for m in _TOKEN_RE.finditer(text)]
 
 def _sentence_data(text: str):
@@ -44,7 +47,7 @@ def _sentence_data(text: str):
 # -------------------------------------------------------------------
 def split_text_by_filter(
     text: str,
-    finder_funcs: Iterable[Callable[[str], List[Tuple[int, int, str]]]],
+    finder_funcs: Iterable[Callable[[str], list[tuple[int, int, str]]]],
     window_back: int = 0,
     window_fwd: int = 0,
 ) -> SplitResult:
@@ -56,7 +59,7 @@ def split_text_by_filter(
     token_spans = _token_spans(text)
 
     matched_idx: set[int] = set()
-    hits: List[Tuple[int, str, str]] = []
+    hits: list[tuple[int, str, str]] = []
 
     for finder in finder_funcs:
         for w_start, _w_end, hit in finder(text):

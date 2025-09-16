@@ -1,7 +1,9 @@
 """Basic sanity tests for shipped patterns."""
 
-from pyregularexpression import patterns
 import pytest
+
+from pyregularexpression import patterns
+
 
 @pytest.mark.parametrize(
     "address",

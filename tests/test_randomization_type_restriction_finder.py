@@ -9,6 +9,7 @@ Covers five variants (v1–v5):
     • v5 – tight template
 """
 import pytest
+
 from pyregularexpression.randomization_type_restriction_finder import (
     find_randomization_type_restriction_v1,
     find_randomization_type_restriction_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.randomization_type_restriction_finder import (
     find_randomization_type_restriction_v4,
     find_randomization_type_restriction_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

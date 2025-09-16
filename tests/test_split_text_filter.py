@@ -7,23 +7,26 @@ Run with::
 from __future__ import annotations
 
 import importlib
-from typing import List
 
+import nltk
 import pytest
 from nltk.tokenize import sent_tokenize  # ensures sentence boundaries match helper
 
-import nltk
 nltk.download('punkt')
-nltk.download('punkt_tab') 
+nltk.download('punkt_tab')
 
 # Runtime import because the library lives in the editable src tree during CI
 split_mod = importlib.import_module("pyregularexpression.split_text_filter")
 
 split_text_by_filter = split_mod.split_text_by_filter
 
+from pyregularexpression.algorithm_validation_finder import (
+    find_algorithm_validation_v1,  # type: ignore
+)
+from pyregularexpression.attrition_criteria_finder import (
+    find_attrition_criteria_v1,  # type: ignore
+)
 from pyregularexpression.medical_code_finder import find_medical_code_v1  # type: ignore
-from pyregularexpression.algorithm_validation_finder import find_algorithm_validation_v1  # type: ignore
-from pyregularexpression.attrition_criteria_finder import find_attrition_criteria_v1  # type: ignore
 
 FINDERS = [
     find_medical_code_v1,
@@ -78,7 +81,7 @@ def test_window_back_includes_previous_sentence(sample_text):
 
 def test_no_sentence_duplication(sample_text):
     out = _run(sample_text, back=1, fwd=1)
-    matched_sents: List[str] = sent_tokenize(out.matched)
-    notmatched_sents: List[str] = sent_tokenize(out.notmatched)
+    matched_sents: list[str] = sent_tokenize(out.matched)
+    notmatched_sents: list[str] = sent_tokenize(out.notmatched)
     overlap = set(matched_sents).intersection(notmatched_sents)
     assert not overlap, f"Sentences duplicated across splits: {overlap}"

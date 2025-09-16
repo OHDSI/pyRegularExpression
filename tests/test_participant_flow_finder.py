@@ -8,6 +8,7 @@ using CONSORT-style participant flow statements common in PubMed/OHDSI reports.
 """
 
 import pytest
+
 from pyregularexpression.participant_flow_finder import (
     find_participant_flow_v1,
     find_participant_flow_v2,
@@ -15,6 +16,7 @@ from pyregularexpression.participant_flow_finder import (
     find_participant_flow_v4,
     find_participant_flow_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

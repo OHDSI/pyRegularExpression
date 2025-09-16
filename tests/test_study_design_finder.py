@@ -9,6 +9,7 @@ Covers five variants (v1–v5):
     • v5 – tight template (Retrospective cohort study …)
 """
 import pytest
+
 from pyregularexpression.study_design_finder import (
     find_study_design_v1,
     find_study_design_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.study_design_finder import (
     find_study_design_v4,
     find_study_design_v5,
 )
+
 
 # ─────────────────────────────
 # v1 – high recall

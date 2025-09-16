@@ -8,6 +8,7 @@ using clinical/medical outcome definition statements.
 """
 
 import pytest
+
 from pyregularexpression.outcome_definition_finder import (
     find_outcome_definition_v1,
     find_outcome_definition_v2,
@@ -15,6 +16,7 @@ from pyregularexpression.outcome_definition_finder import (
     find_outcome_definition_v4,
     find_outcome_definition_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

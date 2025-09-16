@@ -9,6 +9,7 @@ Covers five variants (v1–v5):
     • v5 – tight template
 """
 import pytest
+
 from pyregularexpression.random_sequence_generation_finder import (
     find_random_sequence_generation_v1,
     find_random_sequence_generation_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.random_sequence_generation_finder import (
     find_random_sequence_generation_v4,
     find_random_sequence_generation_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

@@ -8,6 +8,7 @@ using clinical/medical-style outcome ascertainment statements.
 """
 
 import pytest
+
 from pyregularexpression.outcome_ascertainment_finder import (
     find_outcome_ascertainment_v1,
     find_outcome_ascertainment_v2,
@@ -15,6 +16,7 @@ from pyregularexpression.outcome_ascertainment_finder import (
     find_outcome_ascertainment_v4,
     find_outcome_ascertainment_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

@@ -5,7 +5,8 @@ Add your own `Pattern` subclasses or raw pattern strings here.
 
 import re
 from dataclasses import dataclass
-from typing import Pattern as RePattern
+from re import Pattern as RePattern
+
 
 @dataclass(frozen=True)
 class Pattern:
