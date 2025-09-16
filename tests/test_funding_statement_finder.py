@@ -25,12 +25,18 @@ from pyregularexpression.funding_statement_finder import (
     "text, should_match, test_id",
     [
         (
-            "This work was supported by the National Institutes of Health under award R01 LM006910.",
+            (
+                "This work was supported by the National Institutes of Health under"
+                " award R01 LM006910."
+            ),
             True,
             "v1_pos_supported_by_nih_r01",
         ),
         (
-            "The study was partially funded by the US Food and Drug Administration and the NLM.",
+            (
+                "The study was partially funded by the US Food and Drug Administration"
+                " and the NLM."
+            ),
             True,
             "v1_pos_partially_funded_multiple_agencies",
         ),
@@ -40,7 +46,10 @@ from pyregularexpression.funding_statement_finder import (
             "v1_pos_received_funding_grant",
         ),
         (
-            "Research was supported through funding by Janssen Research and Development, LLC.",
+            (
+                "Research was supported through funding by Janssen Research and"
+                " Development, LLC."
+            ),
             True,
             "v1_pos_janssen_funded",
         ),
@@ -74,7 +83,10 @@ def test_find_funding_statement_v1_robust(text, should_match, test_id):
     "text, should_match, test_id",
     [
         (
-            "The study was funded by the US FDA and partially supported by NIH R01 grants.",
+            (
+                "The study was funded by the US FDA and partially supported by NIH R01"
+                " grants."
+            ),
             True,
             "v2_pos_funded_and_supported",
         ),
@@ -84,7 +96,10 @@ def test_find_funding_statement_v1_robust(text, should_match, test_id):
             "v2_pos_provided_funding",
         ),
         (
-            "This was made possible with grant support from the National Library of Medicine.",
+            (
+                "This was made possible with grant support from the National Library"
+                " of Medicine."
+            ),
             True,
             "v2_pos_grant_support_phrase",
         ),
@@ -137,7 +152,10 @@ def test_find_funding_statement_v3_light(text, should_match, test_id):
     "text, should_match, test_id",
     [
         (
-            "Funding was provided by the National Institutes of Health through grant R01 LM006910.",
+            (
+                "Funding was provided by the National Institutes of Health through"
+                " grant R01 LM006910."
+            ),
             True,
             "v4_pos_funded_with_grant",
         ),

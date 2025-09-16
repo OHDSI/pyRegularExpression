@@ -16,7 +16,6 @@ from pyregularexpression.exposure_definition_finder import (
     find_exposure_definition_v5,
 )
 
-
 # ─────────────────────────────
 # v1 – Any exposure cue (high recall)
 # ─────────────────────────────

@@ -7,9 +7,7 @@ Covers:
 - Functional validation for v3–v5: heading blocks, qualifiers, and tight templates
 - All examples based strictly on OHDSI protocols or PubMed clinical trial abstracts
 """
-
 import pytest
-
 from pyregularexpression.comparator_cohort_finder import (
     find_comparator_cohort_v1,
     find_comparator_cohort_v2,
@@ -17,7 +15,6 @@ from pyregularexpression.comparator_cohort_finder import (
     find_comparator_cohort_v4,
     find_comparator_cohort_v5,
 )
-
 
 # ─────────────────────────────
 # Robust Tests for v1 – High recall: any comparator/control keyword
@@ -82,7 +79,11 @@ def test_find_comparator_cohort_v1(text, should_match, test_id):
             "v2_pos_control_cohort_matched",
         ),
         # ❌ Should fail if proximity or cohort term is missing
-        ("We compared outcomes with prior literature.", False, "v2_neg_no_cohort_or_group"),
+        (
+            "We compared outcomes with prior literature.",
+            False,
+            "v2_neg_no_cohort_or_group",
+        ),
         (
             "The word 'control' appears, but not near cohort terms.",
             False,
@@ -105,7 +106,10 @@ def test_find_comparator_cohort_v2(text, should_match, test_id):
     [
         # ✅ Common OHDSI-style section headers
         (
-            "Control Cohort:\nPatients receiving standard therapy were assigned here.\n\n",
+            (
+                "Control Cohort:\nPatients receiving standard therapy were assigned"
+                " here.\n\n"
+            ),
             True,
             "v3_pos_control_heading",
         ),

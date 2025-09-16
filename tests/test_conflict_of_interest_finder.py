@@ -9,9 +9,7 @@ Variants:
 - v4: v2 + explicit company/payment mention OR explicit negation phrase
 - v5: tight template — "The authors declare no competing interests."
 """
-
 import pytest
-
 from pyregularexpression.conflict_of_interest_finder import (
     find_conflict_of_interest_v1,
     find_conflict_of_interest_v2,
@@ -19,7 +17,6 @@ from pyregularexpression.conflict_of_interest_finder import (
     find_conflict_of_interest_v4,
     find_conflict_of_interest_v5,
 )
-
 
 # ─────────────────────────────
 # v1 – High Recall: any COI cue
@@ -116,7 +113,10 @@ def test_find_conflict_of_interest_v2(text, should_match, test_id):
     [
         # Positive
         (
-            "Conflicts of Interest:\nThe authors disclose consultancy fees from Pfizer.",
+            (
+                "Conflicts of Interest:\nThe authors disclose consultancy fees from"
+                " Pfizer."
+            ),
             True,
             "v3_pos_heading_conflicts",
         ),
@@ -153,7 +153,10 @@ def test_find_conflict_of_interest_v3(text, should_match, test_id):
     [
         # Positive
         (
-            "Dr. Smith disclosed honoraria from Novartis; others report no conflicts of interest.",
+            (
+                "Dr. Smith disclosed honoraria from Novartis; others report no"
+                " conflicts of interest."
+            ),
             True,
             "v4_pos_disclosed_company",
         ),

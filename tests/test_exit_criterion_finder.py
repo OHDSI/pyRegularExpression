@@ -16,7 +16,6 @@ from pyregularexpression.exit_criterion_finder import (
     find_exit_criterion_v5,
 )
 
-
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall with trap filtering)
 # ────────────────────────────────────
