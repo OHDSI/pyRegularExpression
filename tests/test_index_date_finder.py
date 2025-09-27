@@ -1,6 +1,7 @@
 # tests/test_index_date_finder.py
 
 import pytest
+
 from pyregularexpression.index_date_finder import (
     find_index_date_v1,
     find_index_date_v2,
@@ -8,6 +9,7 @@ from pyregularexpression.index_date_finder import (
     find_index_date_v4,
     find_index_date_v5,
 )
+
 
 # -----------------------------
 # v1 – high recall (any index/baseline date)

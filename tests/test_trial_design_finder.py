@@ -9,6 +9,7 @@ out contextual false positives.
 """
 
 import pytest
+
 from pyregularexpression.trial_design_finder import (
     find_trial_design_v1,
     find_trial_design_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.trial_design_finder import (
     find_trial_design_v4,
     find_trial_design_v5,
 )
+
 
 # ─────────────────────────────
 # Tests for v1 – high recall + type term nearby

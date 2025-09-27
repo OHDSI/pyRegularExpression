@@ -1,7 +1,7 @@
 # file: spark_regex_utils.py
 
 import re
-from typing import Callable, Sequence, Any, Dict, List, Tuple
+from collections.abc import Callable, Sequence
 
 import pandas as pd
 from pyspark.sql.functions import pandas_udf
@@ -12,7 +12,7 @@ __all__ = [
 ]
 
 def extract_regex_paragraphs_udf(
-    regex_funcs: Sequence[Callable[[str], List[Tuple[int, int, str]]]],
+    regex_funcs: Sequence[Callable[[str], list[tuple[int, int, str]]]],
     split_pattern: str = r'\n\s*\n'
 ):
     """
@@ -30,7 +30,7 @@ def extract_regex_paragraphs_udf(
     """
     @pandas_udf(ArrayType(StringType()))
     def _matched_paragraphs(texts: pd.Series) -> pd.Series:
-        def extract_paras(doc: str) -> List[str]:
+        def extract_paras(doc: str) -> list[str]:
             if doc is None:
                 return []
             # 1) split into paragraphs

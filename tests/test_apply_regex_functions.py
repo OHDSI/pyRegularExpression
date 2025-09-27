@@ -1,5 +1,7 @@
 import pytest
+
 from pyregularexpression.apply_regex_functions import apply_regex_funcs
+
 
 def find_a(text):
     return [(0, 1, 'a')] if 'a' in text else []

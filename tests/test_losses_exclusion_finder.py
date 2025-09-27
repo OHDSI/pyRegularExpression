@@ -1,6 +1,7 @@
 # tests/test_losses_exclusion_finder.py
 
 import pytest
+
 from pyregularexpression.losses_exclusion_finder import (
     find_losses_exclusion_v1,
     find_losses_exclusion_v2,
@@ -8,6 +9,7 @@ from pyregularexpression.losses_exclusion_finder import (
     find_losses_exclusion_v4,
     find_losses_exclusion_v5,
 )
+
 
 # -----------------------------
 # v1 – high recall: any dropout/loss cue + number

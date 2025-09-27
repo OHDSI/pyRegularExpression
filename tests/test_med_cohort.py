@@ -1,12 +1,13 @@
 # tests/test_med_cohort.py
-import re
 import pytest
+
 from pyregularexpression.med_cohort import (
+    COHORT_LOGIC_RE,
+    MEDICAL_CODE_RE,
     extract_medical_codes,
     find_cohort_logic,
-    MEDICAL_CODE_RE,
-    COHORT_LOGIC_RE,
 )
+
 
 # ──────────────────────────────────────────────────────────────
 # 1.  Medical-code extraction

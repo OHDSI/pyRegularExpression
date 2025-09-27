@@ -9,6 +9,7 @@ Ladder v1–v5:
     • v5 – tight template
 """
 import pytest
+
 from pyregularexpression.statistical_analysis_primary_analysis_finder import (
     find_statistical_analysis_primary_analysis_v1,
     find_statistical_analysis_primary_analysis_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.statistical_analysis_primary_analysis_finder import (
     find_statistical_analysis_primary_analysis_v4,
     find_statistical_analysis_primary_analysis_v5,
 )
+
 
 # ─────────────────────────────
 # v1 – high recall

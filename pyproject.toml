@@ -19,7 +19,7 @@ classifiers = [
 ]
 dependencies = [
     "pandas",
-    "numpy"
+    "numpy<2.3"
 ]
 
 [project.urls]
@@ -47,3 +47,23 @@ package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+
+[tool.black]
+line-length = 88
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+
+[tool.mypy]
+ignore_missing_imports = true

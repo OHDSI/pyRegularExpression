@@ -1,6 +1,7 @@
 # tests/test_limitations_finder.py
 
 import pytest
+
 from pyregularexpression.limitations_finder import (
     find_limitations_v1,
     find_limitations_v2,
@@ -8,6 +9,7 @@ from pyregularexpression.limitations_finder import (
     find_limitations_v4,
     find_limitations_v5,
 )
+
 
 # -----------------------------
 # v1 – high recall: any limitations cue

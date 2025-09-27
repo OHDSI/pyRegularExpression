@@ -5,6 +5,7 @@ This suite provides robust checks for v1 and v2 and lighter validation for v3, v
 using clinical/medical-style trial design/protocol change statements.
 """
 import pytest
+
 from pyregularexpression.trial_design_changes_finder import (
     find_trial_design_changes_v1,
     find_trial_design_changes_v2,
@@ -12,6 +13,7 @@ from pyregularexpression.trial_design_changes_finder import (
     find_trial_design_changes_v4,
     find_trial_design_changes_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

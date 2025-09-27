@@ -9,6 +9,7 @@ Covers five variants (v1–v5):
     • v5 – tight template (explicit placebo injection matching active drug)
 """
 import pytest
+
 from pyregularexpression.similarity_of_interventions_finder import (
     find_similarity_of_interventions_v1,
     find_similarity_of_interventions_v2,
@@ -16,6 +17,7 @@ from pyregularexpression.similarity_of_interventions_finder import (
     find_similarity_of_interventions_v4,
     find_similarity_of_interventions_v5,
 )
+
 
 # ────────────────────────────────────
 # Robust Tests for v1 (High Recall)

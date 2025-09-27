@@ -1,4 +1,5 @@
-from typing import Callable, Sequence, Any, Dict, List, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any
 
 # import your regex‐finder functions
 from pyregularexpression.algorithm_validation_finder import find_algorithm_validation_v1
@@ -48,8 +49,8 @@ REGEX_FUNCS_PHENOTYPE_ALGORITHM_1 = [
 
 def apply_regex_funcs(
     text: str,
-    regex_funcs: Sequence[Callable[..., List[Tuple[int,int,str]]]]
-) -> Dict[str, Any]:
+    regex_funcs: Sequence[Callable[..., list[tuple[int,int,str]]]]
+) -> dict[str, Any]:
     """
     Apply each regex function in `regex_funcs` to `text`.
 
@@ -57,7 +58,7 @@ def apply_regex_funcs(
       - 'matches': { func_name: [(start, end, snippet), …], … }
       - 'any_match': True if any function returned a non‐empty list
     """
-    results: Dict[str, List[Tuple[int,int,str]]] = {}
+    results: dict[str, list[tuple[int,int,str]]] = {}
     for fn in regex_funcs:
         try:
             # most of these take only `text`
