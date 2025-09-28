@@ -56,6 +56,7 @@ jobs:
         run: pytest --cov=src --cov-report=xml
 
       - name: Upload coverage to Codecov
+        if: ${{ secrets.CODECOV_TOKEN }}
         uses: codecov/codecov-action@1f442934a3bba2a201b1757833a57e6044bf8c75 # v4.5.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
